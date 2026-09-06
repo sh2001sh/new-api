@@ -194,12 +194,7 @@ func ApplyV2Migrations(ctx context.Context, dryRun bool) error {
 
 	steps := []schemaMigrationStep{
 		{ID: "20260710_billing_core", Run: func(tx *gorm.DB) error {
-			if tx.Migrator().HasTable(&billingschema.BillingAccount{}) &&
-				tx.Migrator().HasTable(&billingschema.BillingBalanceSnapshot{}) &&
-				tx.Migrator().HasTable(&billingschema.BillingLedgerEntry{}) &&
-				tx.Migrator().HasTable(&billingschema.BillingReservation{}) &&
-				tx.Migrator().HasTable(&billingschema.BillingSettlement{}) &&
-				tx.Migrator().HasTable(&billingschema.BillingOutboxEvent{}) {
+			if billingCoreTablesExist(tx) {
 				return nil
 			}
 			return tx.AutoMigrate(&billingschema.BillingAccount{}, &billingschema.BillingBalanceSnapshot{}, &billingschema.BillingLedgerEntry{}, &billingschema.BillingReservation{}, &billingschema.BillingSettlement{}, &billingschema.BillingOutboxEvent{})
@@ -472,6 +467,25 @@ func ApplyV2Migrations(ctx context.Context, dryRun bool) error {
 		}
 	}
 	return nil
+}
+
+func billingCoreTablesExist(tx *gorm.DB) bool {
+	if platformdb.UsingPostgreSQL {
+		var count int64
+		err := tx.Raw(`
+			SELECT count(*)
+			FROM information_schema.tables
+			WHERE table_schema = 'billing'
+			  AND table_name IN ('accounts', 'balance_snapshots', 'ledger_entries', 'reservations', 'settlements', 'outbox_events')
+		`).Scan(&count).Error
+		return err == nil && count == 6
+	}
+	return tx.Migrator().HasTable(&billingschema.BillingAccount{}) &&
+		tx.Migrator().HasTable(&billingschema.BillingBalanceSnapshot{}) &&
+		tx.Migrator().HasTable(&billingschema.BillingLedgerEntry{}) &&
+		tx.Migrator().HasTable(&billingschema.BillingReservation{}) &&
+		tx.Migrator().HasTable(&billingschema.BillingSettlement{}) &&
+		tx.Migrator().HasTable(&billingschema.BillingOutboxEvent{})
 }
 
 func migrateGatewayRoutePoolMultiPool(tx *gorm.DB) error {
