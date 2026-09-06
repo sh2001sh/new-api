@@ -80,7 +80,7 @@ func InitPrimaryDB() error {
 	if !platformconfig.IsMasterNode {
 		return nil
 	}
-	if !platformconfig.GetEnvOrDefaultBool("AUTO_DB_MIGRATION", false) {
+	if !platformconfig.GetEnvOrDefaultBool("AUTO_DB_MIGRATION", false) || os.Getenv("V2_MIGRATION_ONLY") == "true" {
 		platformobservability.SysLog("database migration deferred; run db-migrate before starting services")
 		return nil
 	}

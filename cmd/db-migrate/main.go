@@ -18,6 +18,10 @@ func main() {
 	flag.Parse()
 
 	platformconfig.IsMasterNode = true
+	// The migration utility applies the versioned v2 steps below; skip the
+	// legacy startup AutoMigrate path, which is unsafe on existing PostgreSQL
+	// schemas with historical index names.
+	_ = os.Setenv("V2_MIGRATION_ONLY", "true")
 	if path := os.Getenv("SQLITE_PATH"); path != "" {
 		platformdb.SQLitePath = path
 	}
