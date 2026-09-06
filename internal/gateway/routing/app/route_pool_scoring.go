@@ -10,6 +10,90 @@ import (
 	gatewayschema "github.com/sh2001sh/new-api/internal/gateway/schema"
 )
 
+// applyRoutePoolConcurrencyPenalty takes one cross-instance snapshot for all
+// candidates so a busy pool member loses preference before its hard admission
+// limit is reached. Telemetry failure falls back to process-local counts.
+func applyRoutePoolConcurrencyPenalty(candidateSets ...[]scoredRoutePoolCandidate) {
+	channelIDs := make([]int, 0)
+	for _, candidates := range candidateSets {
+		for _, candidate := range candidates {
+			if candidate.channel != nil && candidate.channel.Id > 0 {
+				channelIDs = append(channelIDs, candidate.channel.Id)
+			}
+		}
+	}
+	applyRoutePoolConcurrencyPenaltySnapshot(gatewayruntime.ActiveChannelRequestsForChannels(channelIDs), candidateSets...)
+}
+
+func applyRoutePoolConcurrencyPenaltySnapshot(active map[int]int, candidateSets ...[]scoredRoutePoolCandidate) {
+	unlimitedInflight := make([]int, 0)
+	for _, candidates := range candidateSets {
+		for _, candidate := range candidates {
+			if candidate.channel != nil && candidate.channel.MarketplaceMaxConcurrency <= 0 {
+				unlimitedInflight = append(unlimitedInflight, max(0, active[candidate.channel.Id]))
+			}
+		}
+	}
+	sort.Ints(unlimitedInflight)
+	unlimitedMedian := 0
+	if len(unlimitedInflight) > 0 {
+		unlimitedMedian = unlimitedInflight[(len(unlimitedInflight)-1)/2]
+	}
+	for _, candidates := range candidateSets {
+		for index := range candidates {
+			candidate := &candidates[index]
+			if candidate.channel == nil {
+				continue
+			}
+			candidate.inflight = max(0, active[candidate.channel.Id])
+			candidate.score *= routePoolConcurrencyPenalty(
+				candidate.inflight,
+				candidate.channel.MarketplaceMaxConcurrency,
+				unlimitedMedian,
+			)
+		}
+	}
+}
+
+func routePoolConcurrencyPenalty(inflight, limit, unlimitedMedian int) float64 {
+	if inflight <= 0 {
+		return 1
+	}
+	if limit <= 0 {
+		baseline := max(1, unlimitedMedian)
+		ratio := float64(inflight) / float64(baseline)
+		switch {
+		case ratio >= 4:
+			return 1.6
+		case ratio >= 2:
+			return 1.25
+		default:
+			return 1
+		}
+	}
+	utilization := float64(inflight) / float64(limit)
+	switch {
+	case utilization < 0.5:
+		return 1
+	case utilization < 0.75:
+		return 1 + (utilization-0.5)/0.25*0.15
+	case utilization < 0.9:
+		return 1.15 + (utilization-0.75)/0.15*0.35
+	default:
+		return 2 + math.Min(1, (utilization-0.9)/0.1)
+	}
+}
+
+func routePoolCandidateLoad(candidate scoredRoutePoolCandidate) float64 {
+	if candidate.channel == nil {
+		return math.Inf(1)
+	}
+	if limit := candidate.channel.MarketplaceMaxConcurrency; limit > 0 {
+		return float64(candidate.inflight) / float64(limit)
+	}
+	return float64(candidate.inflight)
+}
+
 func effectiveRoutePoolCost(member gatewayschema.RoutePoolMember, modelName string, health gatewayruntime.ChannelHealth) float64 {
 	cost := routePoolModelCost(member, modelName)
 	if cost <= 0 {

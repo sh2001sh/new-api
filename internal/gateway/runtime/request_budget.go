@@ -20,6 +20,9 @@ const (
 	responsesShortAttemptBucket      = 5 * time.Second
 	responsesAdaptiveTTFTMinSamples  = 10
 	largeRequestBodyBudgetThreshold  = 8 << 20
+	autoRouteShortFirstByteTimeout   = 12 * time.Second
+	autoRouteToolFirstByteTimeout    = 18 * time.Second
+	autoRouteLongFirstByteTimeout    = 25 * time.Second
 )
 
 type RequestBudget struct {
@@ -105,6 +108,40 @@ func RetryableResponsesAttemptTimeout(c *gin.Context) time.Duration {
 		return responsesShortAttemptMax
 	}
 	return ceilDuration(timeout, responsesShortAttemptBucket)
+}
+
+// AutomaticRouteFirstByteTimeout bounds an Auto request before it emits any
+// useful output so an overloaded first group can yield to a later group. It
+// excludes upstream-bound sessions because their state cannot be rebuilt by a
+// different channel.
+func AutomaticRouteFirstByteTimeout(c *gin.Context) time.Duration {
+	if c == nil || !IsAutoRouteRequest(c) || IsImageGenerationRequest(c) || !HasRemainingCrossGroupRoute(c) {
+		return 0
+	}
+	if _, specificChannel := c.Get("specific_channel_id"); specificChannel {
+		return 0
+	}
+	profile, found := RequestProfileFromContext(c)
+	if !found || !profile.IsStream || profile.MigrationCapability == MigrationUpstreamStateBound {
+		return 0
+	}
+	budget := RequestBudgetFromContext(c)
+	if budget == nil || !budget.CanRetry(time.Now()) {
+		return 0
+	}
+	switch profile.RequestType {
+	case RequestTypeChatShortStream:
+		return autoRouteShortFirstByteTimeout
+	case RequestTypeToolCallStream:
+		return autoRouteToolFirstByteTimeout
+	case RequestTypeChatLongStream:
+		if IsLongContextRequest(c) {
+			return 0
+		}
+		return autoRouteLongFirstByteTimeout
+	default:
+		return 0
+	}
 }
 
 func ceilDuration(value, bucket time.Duration) time.Duration {

@@ -71,6 +71,7 @@ func ShouldMigrateAutomaticPoolAffinity(c *gin.Context, group, modelName string,
 	if current == nil || len(healthy) < 2 {
 		return false
 	}
+	applyRoutePoolConcurrencyPenalty(healthy)
 	applyRoutePoolTTFTPenalty(healthy, modelName, requestType)
 	for index := range healthy {
 		if healthy[index].channel.Id == channelID {
@@ -81,6 +82,9 @@ func ShouldMigrateAutomaticPoolAffinity(c *gin.Context, group, modelName string,
 	best := chooseDifferentFaultDomainRoutePoolCandidate(healthy, current)
 	if best == nil || best.channel.Id == channelID {
 		return false
+	}
+	if routePoolStickyCandidateOverloaded(current, best) {
+		return true
 	}
 	health, _ := routePoolChannelHealth(c, channelID, modelName, requestType)
 	medianTTFT := routePoolMedianTTFT(healthy, modelName, requestType)
@@ -156,8 +160,36 @@ func getRoutePoolStickyCandidate(c *gin.Context, candidates []scoredRoutePoolCan
 		return nil
 	}
 	best := chooseLowestRoutePoolCandidate(candidates)
+	leastLoaded := chooseLeastLoadedRoutePoolCandidate(candidates)
+	if routePoolStickyCandidateOverloaded(sticky, leastLoaded) {
+		return nil
+	}
 	if best != nil && best.channel.Id != channelID && best.score <= sticky.score*(1-routePoolSwitchImprovement) {
 		return nil
 	}
 	return sticky
+}
+
+func chooseLeastLoadedRoutePoolCandidate(candidates []scoredRoutePoolCandidate) *scoredRoutePoolCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+	leastLoaded := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if routePoolCandidateLoad(candidate) < routePoolCandidateLoad(leastLoaded) {
+			leastLoaded = candidate
+		}
+	}
+	return &leastLoaded
+}
+
+func routePoolStickyCandidateOverloaded(sticky, leastLoaded *scoredRoutePoolCandidate) bool {
+	if sticky == nil || sticky.channel == nil || leastLoaded == nil || leastLoaded.channel == nil ||
+		sticky.channel.Id == leastLoaded.channel.Id {
+		return false
+	}
+	if limit := sticky.channel.MarketplaceMaxConcurrency; limit > 0 {
+		return sticky.inflight*100 >= limit*85 && routePoolCandidateLoad(*leastLoaded) < routePoolCandidateLoad(*sticky)
+	}
+	return sticky.inflight >= 4 && sticky.inflight >= leastLoaded.inflight*2+2
 }

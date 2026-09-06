@@ -224,3 +224,43 @@ func TestRemainingCrossGroupRouteState(t *testing.T) {
 	MarkRemainingCrossGroupRoutes(context, 0)
 	require.False(t, HasRemainingCrossGroupRoute(context))
 }
+
+func TestAutomaticRouteFirstByteTimeoutRequiresSafeFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	profile := RequestProfile{
+		RequestType:         RequestTypeChatShortStream,
+		IsStream:            true,
+		MigrationCapability: MigrationUnbound,
+	}
+	setRequestProfile(context, profile)
+	MarkAutoRouteRequest(context)
+	MarkRemainingCrossGroupRoutes(context, 1)
+	budget := StartRequestBudget(context, profile, time.Now())
+	require.True(t, budget.TryBeginAttempt(time.Now(), "provider:a"))
+
+	require.Equal(t, autoRouteShortFirstByteTimeout, AutomaticRouteFirstByteTimeout(context))
+
+	context.Set("specific_channel_id", 9)
+	require.Zero(t, AutomaticRouteFirstByteTimeout(context))
+	context.Set("specific_channel_id", nil)
+	MarkRemainingCrossGroupRoutes(context, 0)
+	require.Zero(t, AutomaticRouteFirstByteTimeout(context))
+}
+
+func TestAutomaticRouteFirstByteTimeoutProtectsUpstreamState(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	profile := RequestProfile{
+		RequestType:         RequestTypeChatLongStream,
+		IsStream:            true,
+		MigrationCapability: MigrationUpstreamStateBound,
+	}
+	setRequestProfile(context, profile)
+	MarkAutoRouteRequest(context)
+	MarkRemainingCrossGroupRoutes(context, 1)
+	budget := StartRequestBudget(context, profile, time.Now())
+	require.True(t, budget.TryBeginAttempt(time.Now(), "provider:a"))
+
+	require.Zero(t, AutomaticRouteFirstByteTimeout(context))
+}

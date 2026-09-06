@@ -197,3 +197,48 @@ func TestRoutePoolEmergencyRetryProbeAllowsOnlyBoundedExtraSlot(t *testing.T) {
 	assert.NotNil(t, reserveRoutePoolEmergencyRetryProbe(nil, candidate, modelName))
 	assert.Nil(t, reserveRoutePoolEmergencyRetryProbe(nil, candidate, modelName))
 }
+
+func TestRoutePoolConcurrencyPenaltyPrefersAvailableCapacity(t *testing.T) {
+	busy := scoredRoutePoolCandidate{
+		channel: &gatewayschema.Channel{Id: 701, MarketplaceMaxConcurrency: 100},
+		score:   0.8,
+	}
+	available := scoredRoutePoolCandidate{
+		channel: &gatewayschema.Channel{Id: 702, MarketplaceMaxConcurrency: 100},
+		score:   1,
+	}
+	candidates := []scoredRoutePoolCandidate{busy, available}
+
+	applyRoutePoolConcurrencyPenaltySnapshot(map[int]int{701: 95, 702: 10}, candidates)
+
+	assert.Greater(t, candidates[0].score, candidates[1].score)
+	selected := chooseRoutePoolHealthyCandidate(candidates)
+	assert.NotNil(t, selected)
+	assert.Equal(t, 702, selected.channel.Id)
+}
+
+func TestRoutePoolConcurrencyPenaltyDoesNotTreatUnlimitedChannelAsFull(t *testing.T) {
+	candidates := []scoredRoutePoolCandidate{
+		{channel: &gatewayschema.Channel{Id: 711}, score: 1},
+		{channel: &gatewayschema.Channel{Id: 712}, score: 1},
+	}
+
+	applyRoutePoolConcurrencyPenaltySnapshot(map[int]int{711: 1, 712: 0}, candidates)
+
+	assert.Equal(t, 1.0, candidates[0].score)
+	assert.Equal(t, 1.0, candidates[1].score)
+}
+
+func TestRoutePoolStickyCandidateOverloadBreaksAffinity(t *testing.T) {
+	sticky := &scoredRoutePoolCandidate{
+		channel:  &gatewayschema.Channel{Id: 721, MarketplaceMaxConcurrency: 100},
+		inflight: 90,
+	}
+	available := &scoredRoutePoolCandidate{
+		channel:  &gatewayschema.Channel{Id: 722, MarketplaceMaxConcurrency: 100},
+		inflight: 10,
+	}
+
+	assert.True(t, routePoolStickyCandidateOverloaded(sticky, available))
+	assert.False(t, routePoolStickyCandidateOverloaded(available, sticky))
+}

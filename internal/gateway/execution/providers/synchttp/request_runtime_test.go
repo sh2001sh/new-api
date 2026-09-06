@@ -199,6 +199,33 @@ func TestLongResponsesRequestDoesNotUseShortRetryHeaderTimeout(t *testing.T) {
 	require.Zero(t, responseHeaderTimeoutForRequest(context, info))
 }
 
+func TestAutomaticRouteHeaderTimeoutOverridesLongResponsesWait(t *testing.T) {
+	previous := platformconfig.RelayResponseHeaderTimeout
+	platformconfig.RelayResponseHeaderTimeout = 0
+	t.Cleanup(func() { platformconfig.RelayResponseHeaderTimeout = previous })
+
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	profile := relaycommon.InitializeRequestProfile(
+		context,
+		"gpt-5.6-sol",
+		context.Request.URL.Path,
+		relaycommon.RequestProfileHint{IsStream: true, HasTools: true},
+	)
+	relaycommon.MarkAutoRouteRequest(context)
+	relaycommon.MarkRemainingCrossGroupRoutes(context, 1)
+	budget := relaycommon.StartRequestBudget(context, profile, time.Now())
+	require.True(t, budget.TryBeginAttempt(time.Now(), "provider:a"))
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.6-sol",
+		RelayMode:       gatewaycontract.RelayModeResponses,
+		IsStream:        true,
+	}
+
+	require.Equal(t, 18*time.Second, responseHeaderTimeoutForRequest(context, info))
+}
+
 func TestSetupAPIRequestHeaderForwardsRemoteCompactionFeature(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

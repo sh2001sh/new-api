@@ -34,6 +34,7 @@ const (
 type scoredRoutePoolCandidate struct {
 	channel                  *gatewayschema.Channel
 	score                    float64
+	inflight                 int
 	compactionCapabilityRank int
 	probe                    bool
 	cost                     float64
@@ -73,6 +74,7 @@ func selectAutomaticPoolChannel(c *gin.Context, group, modelName string, retry i
 	healthy, probes, lastResortProbes := buildRoutePoolCandidateSets(c, candidates, modelName, requestType, now, detail.Pool)
 	healthy, probes, lastResortProbes = preferRemoteCompactionCandidates(healthy, probes, lastResortProbes)
 
+	applyRoutePoolConcurrencyPenalty(healthy, probes, lastResortProbes)
 	applyRoutePoolTTFTPenalty(healthy, modelName, requestType)
 	applyRoutePoolTTFTPenalty(probes, modelName, requestType)
 	applyRoutePoolTTFTPenalty(lastResortProbes, modelName, requestType)

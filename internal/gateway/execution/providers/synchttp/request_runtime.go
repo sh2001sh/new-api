@@ -217,6 +217,11 @@ func responseHeaderTimeoutForRequest(c *gin.Context, info *relaycommon.RelayInfo
 		}
 		return maxDuration(baseTimeout, imageTimeout)
 	}
+	if info.IsStream {
+		if automaticTimeout := relaycommon.AutomaticRouteFirstByteTimeout(c); automaticTimeout > 0 {
+			return minPositiveDuration(baseTimeout, automaticTimeout)
+		}
+	}
 	// A long-lived Responses request may spend several minutes restoring
 	// upstream conversation state before sending response headers. The short
 	// first-attempt retry window is for ordinary requests only; applying it
