@@ -163,7 +163,7 @@ func TestAutoRoutePoolRejectsForeignPrivateGroup(t *testing.T) {
 	require.NoError(t, db.Create(&group).Error)
 
 	_, err := ReplaceAutoRoutePool(20, AutoRoutePoolUpdateRequest{GroupIDs: []string{"private"}})
-	require.EqualError(t, err, "路由池包含不可用或无权访问的分组")
+	require.EqualError(t, err, "路由池包含失效或无权访问的分组：private")
 }
 
 func TestAutoRoutePoolAllowsInvitedPrivateGroup(t *testing.T) {

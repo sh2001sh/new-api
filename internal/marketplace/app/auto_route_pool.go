@@ -183,7 +183,7 @@ func ReplaceAutoRoutePool(ownerUserID int, req AutoRoutePoolUpdateRequest) (*Aut
 	}
 	for _, groupID := range groupIDs {
 		if _, ok := eligible[groupID]; !ok {
-			return nil, errors.New("路由池包含不可用或无权访问的分组")
+			return nil, fmt.Errorf("路由池包含失效或无权访问的分组：%s", groupID)
 		}
 	}
 
@@ -298,6 +298,23 @@ func resolveRoutePoolBindings(ownerUserID int, selected map[string]int, config A
 	groups, channels, err := loadAutoRouteGroupsForIDs(ownerUserID, marketplaceGroupIDs)
 	if err != nil {
 		return nil, err
+	}
+	// Members may reference deleted/disabled groups. Keep valid members and
+	// allow the remaining pool to serve; only fail when nothing remains.
+	valid := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		valid[group.ID] = struct{}{}
+	}
+	for groupID := range selected {
+		if strings.HasPrefix(groupID, officialAutoRoutePrefix) {
+			continue
+		}
+		if _, ok := valid[groupID]; !ok {
+			delete(selected, groupID)
+		}
+	}
+	if len(selected) == 0 {
+		return nil, errors.New("路由池中的分组已失效，请重新配置")
 	}
 	snapshots, err := loadAutoRouteSnapshots(groups)
 	if err != nil {
