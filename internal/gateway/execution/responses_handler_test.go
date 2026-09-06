@@ -117,7 +117,7 @@ func TestBuildRemoteCompactionV2BodyPreservesProtocolFields(t *testing.T) {
 	defer storage.Close()
 	ctx.Set(platformhttpx.KeyBodyStorage, storage)
 
-	body, size, err := buildRemoteCompactionV2Body(ctx, "gpt-5-alias", "gpt-5-alias")
+	body, size, err := buildRemoteCompactionV2Body(ctx, "gpt-5-alias", "gpt-5-alias", nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(len(payload)), size)
 	actual, err := io.ReadAll(body)
@@ -133,7 +133,7 @@ func TestBuildRemoteCompactionV2BodyMapsOnlyModel(t *testing.T) {
 	defer storage.Close()
 	ctx.Set(platformhttpx.KeyBodyStorage, storage)
 
-	body, _, err := buildRemoteCompactionV2Body(ctx, "gpt-5-alias", "gpt-5-upstream")
+	body, _, err := buildRemoteCompactionV2Body(ctx, "gpt-5-alias", "gpt-5-upstream", nil)
 	require.NoError(t, err)
 	actual, err := io.ReadAll(body)
 	require.NoError(t, err)

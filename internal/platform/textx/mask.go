@@ -39,6 +39,14 @@ func RedactCredentials(value string) string {
 
 const UpstreamQuotaGenericMessage = "当前模型服务暂不可用，请稍后重试"
 
+const (
+	UpstreamBusyMessage        = "服务繁忙，请稍后重试"
+	UpstreamTimeoutMessage     = "响应超时，请稍后重试"
+	UpstreamInterruptedMessage = "响应中断，请重试"
+	UpstreamConnectionMessage  = "连接暂时不稳定，请稍后重试"
+	UpstreamGatewayMessage     = "服务响应异常，请稍后重试"
+)
+
 // MaskEmail hides the local part of an email address for logs and user-facing telemetry.
 func MaskEmail(email string) string {
 	if email == "" {
@@ -146,19 +154,52 @@ func MaskSensitiveInfo(str string) string {
 	return str
 }
 
-// SanitizeUpstreamProviderErrorMessage hides upstream availability and quota details.
+// SanitizeUpstreamProviderErrorMessage hides provider details while retaining
+// a safe, actionable category for the API consumer. The returned text must not
+// disclose that the service uses upstream providers, channels, groups, hosts,
+// or routing internals.
 func SanitizeUpstreamProviderErrorMessage(message string) string {
 	if message == "" {
 		return ""
 	}
 	lowerMessage := strings.ToLower(message)
+	if strings.Contains(message, "站内余额不足") || strings.Contains(message, "套餐可用额度不足") || strings.Contains(message, "Claude额度不足") {
+		return message
+	}
 	if strings.Contains(lowerMessage, "status_code=429") || strings.Contains(lowerMessage, "cooling down via provider") {
 		return "status_code=429"
 	}
-	if IsUpstreamProviderUnavailableMessage(message) {
+	if upstreamQuotaLeakPattern.MatchString(message) || upstreamDatabaseUnavailablePattern.MatchString(message) || containsTextAny(lowerMessage, "insufficient quota", "insufficient balance", "quota is not enough", "token quota is not enough", "remaining quota", "remain quota", "remaining balance", "balance is not enough", "用户额度不足", "剩余额度", "预扣费额度失败", "需要预扣费额度", "余额不足", "no available channel", "no available route", "no available provider", "no valid upstream") {
 		return UpstreamQuotaGenericMessage
 	}
+	if strings.Contains(lowerMessage, "model") && (strings.Contains(lowerMessage, "temporarily unavailable") || strings.Contains(lowerMessage, "not available") || strings.Contains(lowerMessage, "not supported") || strings.Contains(lowerMessage, "not found") || strings.Contains(lowerMessage, "not exist")) {
+		return UpstreamQuotaGenericMessage
+	}
+	if strings.Contains(lowerMessage, "upstream response timed out") || strings.Contains(lowerMessage, "response timed out") {
+		return UpstreamTimeoutMessage
+	}
+	if strings.Contains(lowerMessage, "stream closed before") || strings.Contains(lowerMessage, "stream ended before") || strings.Contains(lowerMessage, "stream terminated before") {
+		return UpstreamInterruptedMessage
+	}
+	if strings.Contains(lowerMessage, "connection refused") || strings.Contains(lowerMessage, "connection reset") || strings.Contains(lowerMessage, "disconnect/reset") || strings.Contains(lowerMessage, "delayed connect error") {
+		return UpstreamConnectionMessage
+	}
+	if strings.Contains(lowerMessage, "invalid or incomplete response") || strings.Contains(lowerMessage, "upstream gateway") {
+		return UpstreamGatewayMessage
+	}
+	if strings.Contains(lowerMessage, "service temporarily unavailable") || strings.Contains(lowerMessage, "at capacity") || strings.Contains(lowerMessage, "overloaded") {
+		return UpstreamBusyMessage
+	}
 	return message
+}
+
+func containsTextAny(message string, terms ...string) bool {
+	for _, term := range terms {
+		if strings.Contains(message, term) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsUpstreamProviderUnavailableMessage reports whether upstream text exposes provider capacity details.

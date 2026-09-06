@@ -42,6 +42,12 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	if gatewaycontract.HasRemoteCompactionV2(c.Request.Header) {
+		responseBody, _, err = dto.NormalizeCodexRemoteCompactionResponse(responseBody)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
 	err = platformencoding.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -112,6 +118,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var itemIDRewrites map[string]string
+	if gatewaycontract.HasRemoteCompactionV2(c.Request.Header) {
+		itemIDRewrites = make(map[string]string)
+	}
 	var sawSemanticOutput atomic.Bool
 	var sawCompactionOutput atomic.Bool
 	var sawResponseCompleted atomic.Bool
@@ -143,6 +153,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if itemIDRewrites != nil {
+			normalized, changed, err := dto.NormalizeCodexRemoteCompactionStreamEvent([]byte(data), itemIDRewrites)
+			if err != nil {
+				logger.LogError(c, "failed to normalize Codex Responses stream event: "+err.Error())
+				sr.Error(err)
+				return
+			}
+			if changed {
+				data = string(normalized)
+			}
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse

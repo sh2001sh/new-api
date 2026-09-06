@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sh2001sh/new-api/dto"
 	platformhttpx "github.com/sh2001sh/new-api/internal/platform/httpx"
+	"github.com/tidwall/sjson"
 )
 
 // buildRemoteCompactionV2Body preserves client request fields required by Codex.
-func buildRemoteCompactionV2Body(c *gin.Context, originalModel string, mappedModel string) (*bytes.Reader, int64, error) {
+func buildRemoteCompactionV2Body(c *gin.Context, originalModel string, mappedModel string, input json.RawMessage) (*bytes.Reader, int64, error) {
 	storage, err := platformhttpx.GetBodyStorage(c)
 	if err != nil {
 		return nil, 0, err
@@ -24,7 +26,20 @@ func buildRemoteCompactionV2Body(c *gin.Context, originalModel string, mappedMod
 	if err != nil {
 		return nil, 0, err
 	}
+	if len(input) > 0 {
+		body, err = sjson.SetRawBytes(body, "input", input)
+		if err != nil {
+			return nil, 0, fmt.Errorf("rewrite normalized response input: %w", err)
+		}
+	}
 	return bytes.NewReader(body), int64(len(body)), nil
+}
+
+func normalizeRemoteCompactionInput(request *dto.OpenAIResponsesRequest) (bool, error) {
+	if request == nil {
+		return false, nil
+	}
+	return request.NormalizeCodexRemoteCompactionInput()
 }
 
 func normalizeRemoteCompactionV2Body(body []byte, originalModel, mappedModel string) ([]byte, bool, error) {

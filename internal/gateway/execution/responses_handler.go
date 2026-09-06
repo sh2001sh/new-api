@@ -116,7 +116,12 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	preserveRemoteCompactionV2Body := false
 	nativeRemoteCompactionV2 := info.RelayMode == gatewaycontract.RelayModeResponses && gatewaycontract.HasRemoteCompactionV2(c.Request.Header) && hasRemoteCompactionTrigger(responsesReq.Input)
 	if nativeRemoteCompactionV2 {
-		body, size, err := buildRemoteCompactionV2Body(c, responsesReq.Model, request.Model)
+		if normalized, normalizeErr := normalizeRemoteCompactionInput(responsesReq); normalizeErr != nil {
+			return types.NewError(normalizeErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		} else if normalized {
+			logger.LogInfo(c, "normalized legacy Codex Responses item IDs for remote compaction")
+		}
+		body, size, err := buildRemoteCompactionV2Body(c, responsesReq.Model, request.Model, responsesReq.Input)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
