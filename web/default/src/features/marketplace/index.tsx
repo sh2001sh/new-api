@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { acceptMarketplaceGroupInvite, getMyMarketplaceBargainRequests } from './api'
+import { OfficialMarketGroups } from './components/official-market-groups'
 import { MarketSurface } from './components/market-surface'
 import { TokenBindPanel } from './components/token-bind-panel'
 import { useMarketplaceGroups } from './hooks'
@@ -185,6 +186,7 @@ export function MarketplacePage() {
             </TabsList>
             <TabsContent value='market'>
               <MyBargainStatus />
+              <OfficialMarketGroups poolID='auto' />
               <MarketSurface
                 filters={filters}
                 updateFilters={updateFilters}

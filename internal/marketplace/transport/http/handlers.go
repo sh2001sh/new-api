@@ -386,6 +386,16 @@ func BindToken(c *gin.Context) {
 	respond(c, gin.H{"token_id": tokenID, "group_id": c.Param("id")}, err)
 }
 
+func BindRoutePoolToken(c *gin.Context) {
+	var req marketplaceapp.TokenBindingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpapi.ApiError(c, err)
+		return
+	}
+	tokenID, err := marketplaceapp.BindTokenToMarketplaceRoutePool(c.GetInt("id"), req.TokenID, c.Param("id"))
+	respond(c, gin.H{"token_id": tokenID, "pool_id": c.Param("id")}, err)
+}
+
 func CreateGroupInvite(c *gin.Context) {
 	result, err := marketplaceapp.CreateMarketplaceGroupInvite(c.GetInt("id"), c.Param("id"))
 	respond(c, result, err)

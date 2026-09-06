@@ -8,6 +8,7 @@ import (
 	platformdb "github.com/sh2001sh/new-api/internal/platform/db"
 	platformruntime "github.com/sh2001sh/new-api/internal/platform/runtime"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"math"
 	"strconv"
 	"time"
@@ -127,14 +128,8 @@ func ListOwnerChannelUserUsage(owner int, q OwnerUserUsageQuery) (map[string]any
 	return map[string]any{"items": items, "total": len(items), "page": q.Page, "page_size": q.PageSize, "summary": map[string]any{"total_users": len(items), "total_requests": len(items)}}, nil
 }
 func SetUserMultiplier(owner int, channel string, user int, m *float64) error {
-	var c marketplaceschema.Channel
-	if err := platformdb.DB.Where("id=? AND owner_user_id=?", channel, owner).First(&c).Error; err != nil {
-		return err
-	}
-	if m == nil {
-		return platformdb.DB.Where("channel_id=? AND user_id=?", channel, user).Delete(&marketplaceschema.UserMultiplier{}).Error
-	}
-	return platformdb.DB.Where("channel_id=? AND user_id=?", channel, user).Assign(map[string]any{"multiplier": *m}).FirstOrCreate(&marketplaceschema.UserMultiplier{ChannelID: channel, UserID: user}).Error
+	_, err := BatchSetUserMultipliers(owner, []MultiplierTarget{{ChannelID: channel, UserID: user}}, m)
+	return err
 }
 func ListTimeRangeMultipliers(owner int, channel string) ([]marketplaceschema.TimeRangeMultiplier, error) {
 	var c marketplaceschema.Channel
@@ -245,7 +240,7 @@ func ResolveOwnerBargainRequest(owner int, id, action, note string) (marketplace
 func resolveBargainRequest(id, action, note string, owner *int) (marketplaceschema.BargainRequest, error) {
 	var r marketplaceschema.BargainRequest
 	err := platformdb.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&r, "id=?", id).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&r, "id=?", id).Error; err != nil {
 			return err
 		}
 		if r.Status != "pending" {
@@ -260,8 +255,15 @@ func resolveBargainRequest(id, action, note string, owner *int) (marketplacesche
 		}
 		now := time.Now()
 		if action == "approve" {
+			if err := validateMultiplier(r.ProposedMultiplier); err != nil {
+				return err
+			}
+			var channel marketplaceschema.Channel
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&channel, "id=?", group.ChannelID).Error; err != nil {
+				return err
+			}
 			r.Status = "approved"
-			if err := tx.Where("channel_id=? AND user_id=?", group.ChannelID, r.UserID).Assign(map[string]any{"multiplier": r.ProposedMultiplier}).FirstOrCreate(&marketplaceschema.UserMultiplier{ChannelID: group.ChannelID, UserID: r.UserID}).Error; err != nil {
+			if _, err := setUserMultiplierTx(tx, group, r.UserID, &r.ProposedMultiplier, "bargain"); err != nil {
 				return err
 			}
 		} else if action == "reject" {

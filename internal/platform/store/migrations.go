@@ -152,6 +152,7 @@ func V2MigrationIDs() []string {
 		"20260827_marketplace_channel_user_blocks",
 		"20260828_marketplace_auto_route_pool_config",
 		"20260904_marketplace_auto_route_pool_weights",
+		"20260906_marketplace_multiplier_notices",
 		"20260828_marketplace_settlement_terminal_timestamps",
 		"20260817_marketplace_transport_capabilities",
 		"20260817_responses_background",
@@ -366,6 +367,9 @@ func ApplyV2Migrations(ctx context.Context, dryRun bool) error {
 		// original step still receive the four columns.
 		{ID: "20260904_marketplace_auto_route_pool_weights", Run: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(&marketplaceschema.AutoRoutePoolConfig{})
+		}},
+		{ID: "20260906_marketplace_multiplier_notices", Run: func(tx *gorm.DB) error {
+			return tx.AutoMigrate(&marketplaceschema.MultiplierNotice{})
 		}},
 		{ID: "20260828_marketplace_settlement_terminal_timestamps", Run: migrateMarketplaceSettlementTerminalTimestamps},
 		{ID: "20260817_marketplace_transport_capabilities", Run: migrateMarketplaceTransportCapabilities},

@@ -542,4 +542,13 @@ export interface MarketplaceOwnerUsageItem {
 
 export interface MarketplaceOwnerUsageResult { items: MarketplaceOwnerUsageItem[]; total: number; page: number; page_size: number }
 
+export interface MarketplaceOwnerMultiplierItem {
+  channel_id: string; user_id: number; external_user_id: string; channel_name: string
+  public_multiplier: number; multiplier: number; updated_at: string
+}
+export interface MarketplaceMultiplierNotice {
+  id: number; channel_id: string; channel_name: string; previous_multiplier: number
+  multiplier: number; cleared: boolean; source: 'bargain' | 'manual'; read_at?: string | null; created_at: string
+}
+
 export interface MarketplaceTimeRangeMultiplier { id: string; channel_id: string; start_timestamp: number; end_timestamp: number; multiplier: number; label: string }

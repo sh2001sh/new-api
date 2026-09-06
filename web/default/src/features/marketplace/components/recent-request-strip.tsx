@@ -44,7 +44,7 @@ export const RecentRequestStrip = memo(function RecentRequestStrip(props: {
   const hasRecentTraffic = series.some((bucket) => bucket.request_count > 0)
   if (!hasRecentTraffic) return null
   const threshold = t(
-    '每个色块代表 1 小时：90%（含）以上稳定，85%（含）至 90%（不含）波动，低于 85% 异常，灰色表示无请求'
+    '每个色块代表 1 小时：90%（含）以上绿色，75%（含）至 90%（不含）黄色，低于 75% 红色，灰色表示无请求'
   )
 
   return (
@@ -74,10 +74,10 @@ export const RecentRequestStrip = memo(function RecentRequestStrip(props: {
                   />
                 }
               />
-              <TooltipContent side='top' className='max-w-none'>
+              <TooltipContent side='top' className='max-w-none text-foreground'>
                 <div className='space-y-0.5'>
                   <div className='font-medium'>{range}</div>
-                  <div className='text-background/80 text-xs'>{summary}</div>
+                    <div className='text-muted-foreground text-xs'>{summary}</div>
                 </div>
               </TooltipContent>
             </Tooltip>

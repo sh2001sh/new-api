@@ -22,6 +22,8 @@ import type {
   MarketplaceBargainRequestList,
   MarketplaceOwnerUsageResult,
   MarketplaceTimeRangeMultiplier,
+  MarketplaceOwnerMultiplierItem,
+  MarketplaceMultiplierNotice,
 } from './types'
 
 interface ApiResponse<T = unknown> {
@@ -79,6 +81,22 @@ export async function setMarketplaceUserMultiplier(input: {
     { user_id: input.userId, multiplier: input.multiplier }
   )
   return requireData(response.data)
+}
+
+export async function getOwnerMultipliers() {
+  const response = await api.get<ApiResponse<{items: MarketplaceOwnerMultiplierItem[]; total: number}>>('/api/marketplace/channels/mine/user-multipliers')
+  return requireData(response.data)
+}
+export async function batchSetMarketplaceUserMultipliers(input: { targets: Array<{channel_id: string; user_id: number}>; multiplier: number | null }) {
+  const response = await api.post<ApiResponse<{changed_count: number}>>('/api/marketplace/channels/mine/user-multipliers/batch', { targets: input.targets, action: input.multiplier == null ? 'clear' : 'set', multiplier: input.multiplier })
+  return requireData(response.data)
+}
+export async function getMarketplaceMultiplierNotices() {
+  const response = await api.get<ApiResponse<MarketplaceMultiplierNotice[]>>('/api/marketplace/multiplier-notices')
+  return requireData(response.data)
+}
+export async function readMarketplaceMultiplierNotice(id: number) {
+  await api.post(`/api/marketplace/multiplier-notices/${id}/read`)
 }
 
 export async function getMarketplaceTimeRangeMultipliers(channelId: string) {
@@ -360,6 +378,15 @@ export async function deleteMarketplaceRoutePool(id: string) {
   )
   if (!response.data.success)
     throw new Error(response.data.message || '删除路由池失败')
+}
+
+export async function bindMarketplaceRoutePoolToken(input: { poolId: string; tokenId: number }) {
+  const response = await api.post<ApiResponse<{ token_id: number; pool_id: string }>>(
+    `/api/marketplace/route-pools/${encodeURIComponent(input.poolId)}/bind-token`,
+    { token_id: input.tokenId }
+  )
+  if (!response.data.success) throw new Error(response.data.message || '绑定失败')
+  return requireData(response.data)
 }
 
 export async function startMarketplaceBatchTest(input: {

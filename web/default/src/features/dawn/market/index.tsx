@@ -36,8 +36,11 @@ import {
   useMarketplaceGroups,
   useMarketplaceRoutePool,
   useMarketplaceTokens,
+  useMarketplaceMultiplierNotices,
+  useReadMarketplaceMultiplierNotice,
 } from '@/features/marketplace/hooks'
 import { MARKETPLACE_SOURCE_OPTIONS } from '@/features/marketplace/lib/channel-form'
+import { OfficialMarketGroups } from '@/features/marketplace/components/official-market-groups'
 import { MOCK_MARKETPLACE_GROUPS } from '@/features/marketplace/lib/mock-data'
 import type {
   GroupFilters,
@@ -74,6 +77,14 @@ type Perspective = 'user' | 'owner'
 export function DawnMarket() {
   const user = useAuthStore((state) => state.auth.user)
   const authed = !!user
+  const multiplierNotices = useMarketplaceMultiplierNotices(authed)
+  const readMultiplierNotice = useReadMarketplaceMultiplierNotice()
+  useEffect(() => {
+    for (const notice of multiplierNotices.data ?? []) {
+      toast.info(notice.cleared ? `专属倍率已清除：${notice.channel_name}` : `专属倍率已更新：${notice.channel_name} · ${notice.multiplier}×`)
+      void readMultiplierNotice.mutateAsync(notice.id)
+    }
+  }, [multiplierNotices.data])
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [perspective, setPerspective] = useState<Perspective>('user')
@@ -490,6 +501,7 @@ export function DawnMarket() {
             </div>
 
             <div>
+              <OfficialMarketGroups poolID={activePoolID} enabled={authed && !mockMode} />
               {groupsQuery.isLoading ? (
                 <div className='empty'>
                   <span className='eic'>

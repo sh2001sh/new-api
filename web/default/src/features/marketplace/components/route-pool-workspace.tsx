@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, Check, GripVertical, Plus, Route, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, GripVertical, KeyRound, Plus, Route, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,9 +9,12 @@ import {
   useMarketplaceRoutePoolDelete,
   useMarketplaceRoutePoolUpdate,
   useMarketplaceRoutePools,
+  useMarketplaceTokens,
+  useMarketplaceRoutePoolBindToken,
 } from '../hooks'
 import type { MarketplaceAutoRoutePoolConfig } from '../types'
 import { selectedAutoRoutePoolGroupIDs } from '../lib/auto-route-pool'
+import { OfficialMarketGroups } from './official-market-groups'
 
 export function RoutePoolWorkspace({ compact = false, activePoolID, onActivePoolChange }: { compact?: boolean; activePoolID?: string; onActivePoolChange?: (id: string) => void }) {
   const { t } = useTranslation()
@@ -22,6 +25,9 @@ export function RoutePoolWorkspace({ compact = false, activePoolID, onActivePool
   const poolID = activePoolID ?? localPoolID
   const setPoolID = (id: string) => { setLocalPoolID(id); onActivePoolChange?.(id) }
   const [name, setName] = useState('')
+  const tokens = useMarketplaceTokens()
+  const bind = useMarketplaceRoutePoolBindToken()
+  const [tokenId, setTokenId] = useState(0)
   useEffect(() => {
     if (!poolID && pools.data?.[0]) setPoolID(pools.data[0].id)
   }, [poolID, pools.data])
@@ -48,8 +54,10 @@ export function RoutePoolWorkspace({ compact = false, activePoolID, onActivePool
           <input className='border-input bg-background h-9 w-28 rounded-md border px-2 text-sm' value={name} onChange={(event) => setName(event.target.value)} placeholder={t('新路由池名称')} aria-label={t('新路由池名称')} />
           <Button variant='outline' size='icon-sm' disabled={!name.trim() || create.isPending} onClick={() => void createPool()} aria-label={t('创建路由池')}><Plus /></Button>
           {poolID && <Button variant='ghost' size='icon-sm' disabled={remove.isPending} onClick={() => { if (window.confirm(t('删除此路由池？已绑定的 API Key 将不能继续使用它。'))) { void remove.mutateAsync(poolID).then(() => setPoolID('')) } }} aria-label={t('删除路由池')}><Trash2 /></Button>}
+          {poolID && <div className='flex items-center gap-1.5'><select className='border-input bg-background h-9 max-w-36 rounded-md border px-2 text-sm' value={tokenId} onChange={(e) => setTokenId(Number(e.target.value))}><option value='0'>{t('选择 API Key')}</option>{(tokens.data ?? []).map((token) => <option key={token.id} value={token.id}>{token.name}</option>)}</select><Button variant='outline' size='sm' disabled={!tokenId || bind.isPending} onClick={() => void bind.mutateAsync({ poolId: poolID, tokenId })}><KeyRound />{t('绑定到 Key')}</Button></div>}
         </div>
       </header>
+      <OfficialMarketGroups poolID={poolID} />
       {poolID ? <RoutePoolEditor poolID={poolID} /> : pools.isLoading ? <Skeleton className='m-4 h-36' /> : <div className='text-muted-foreground px-4 py-10 text-center text-sm'>{t('创建一个路由池后，即可从市场分组中选择并排序。')}</div>}
     </section>
   )

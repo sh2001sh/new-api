@@ -15,7 +15,7 @@ export function classifyRequestHealth(
     return 'unknown'
   }
   if (successRate >= 90) return 'healthy'
-  if (successRate >= 85) return 'unstable'
+  if (successRate >= 75) return 'unstable'
   return 'failed'
 }
 

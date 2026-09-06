@@ -14,6 +14,7 @@ import {
 
   getMarketplaceRoutePools,
   getMarketplaceRoutePool,
+  bindMarketplaceRoutePoolToken,
   createMarketplaceRoutePool,
   updateMarketplaceRoutePool,
   deleteMarketplaceRoutePool,
@@ -34,6 +35,7 @@ import {
   updateMarketplaceAutoRoutePool,
   startMarketplaceBatchTest,
   getMarketplaceBatchTest,
+  getOwnerMultipliers, batchSetMarketplaceUserMultipliers, getMarketplaceMultiplierNotices, readMarketplaceMultiplierNotice,
 } from './api'
 import type {
   AdminMarketplaceChannelFilters,
@@ -186,6 +188,15 @@ export function useMarketplaceRoutePoolDelete() {
       ])
     },
   })
+}
+
+export function useOwnerMultipliers() { return useQuery({ queryKey: ['marketplace-owner-multipliers'], queryFn: getOwnerMultipliers, staleTime: 15_000 }) }
+export function useBatchSetOwnerMultipliers() { const client = useQueryClient(); return useMutation({ mutationFn: batchSetMarketplaceUserMultipliers, onSuccess: () => void client.invalidateQueries({ queryKey: ['marketplace-owner-multipliers'] }) }) }
+export function useMarketplaceMultiplierNotices(enabled = true) { return useQuery({ queryKey: ['marketplace-multiplier-notices'], queryFn: getMarketplaceMultiplierNotices, enabled, refetchInterval: 30_000 }) }
+export function useReadMarketplaceMultiplierNotice() { const client = useQueryClient(); return useMutation({ mutationFn: readMarketplaceMultiplierNotice, onSuccess: () => void client.invalidateQueries({ queryKey: ['marketplace-multiplier-notices'] }) }) }
+
+export function useMarketplaceRoutePoolBindToken() {
+  return useMutation({ mutationFn: bindMarketplaceRoutePoolToken })
 }
 
 export function useMarketplaceBatchTest() {

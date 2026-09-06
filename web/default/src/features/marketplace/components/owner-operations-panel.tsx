@@ -26,6 +26,8 @@ import {
   getMarketplaceTimeRangeMultipliers,
   getMyMarketplaceBargainRequests,
   getMyMarketplaceUserUsage,
+  getOwnerMultipliers,
+  batchSetMarketplaceUserMultipliers,
   resolveMarketplaceBargainRequest,
   sendMarketplaceBatchWelfare,
   type MarketplaceBatchWelfareResult,
@@ -50,6 +52,10 @@ export function OwnerOperationsPanel() {
     queryKey: ['marketplace-owner-bargains'],
     queryFn: () => getMyMarketplaceBargainRequests('pending'),
   })
+  const multiplierUsers = useQuery({ queryKey: ['marketplace-owner-multipliers'], queryFn: getOwnerMultipliers })
+  const [multiplierSelection, setMultiplierSelection] = useState<Set<string>>(new Set())
+  const [batchMultiplier, setBatchMultiplier] = useState('')
+  const batchMultiplierMutation = useMutation({ mutationFn: batchSetMarketplaceUserMultipliers, onSuccess: () => { void multiplierUsers.refetch(); setMultiplierSelection(new Set()); setBatchMultiplier(''); toast.success(t('专属倍率批量更新成功，用户已收到通知')) } })
   const [channelID, setChannelID] = useState('')
   const activeChannelID = channelID || channels.data?.[0]?.id || ''
   const rankedUsers = useMemo(
@@ -117,6 +123,11 @@ export function OwnerOperationsPanel() {
           <RefreshCw />
         </Button>
       </header>
+      <div className='border-b p-4'>
+        <div className='flex flex-wrap items-center justify-between gap-2'><div><h4 className='font-medium'>{t('已调整专属倍率的用户')}</h4><p className='text-muted-foreground mt-1 text-xs'>{t('包含砍价成功和渠道主手动调整的用户，可批量设置或清除。')}</p></div><div className='flex items-center gap-2'><Input className='w-28' type='number' min='0.001' step='0.001' placeholder={t('新倍率')} value={batchMultiplier} onChange={(e) => setBatchMultiplier(e.target.value)} /><Button size='sm' disabled={!multiplierSelection.size || Number(batchMultiplier) <= 0 || batchMultiplierMutation.isPending} onClick={() => void batchMultiplierMutation.mutateAsync({ targets: [...multiplierSelection].map((key) => { const [channel_id, user] = key.split(':'); return { channel_id, user_id: Number(user) } }), multiplier: Number(batchMultiplier) })}>{t('批量设置')}</Button><Button variant='outline' size='sm' disabled={!multiplierSelection.size || batchMultiplierMutation.isPending} onClick={() => void batchMultiplierMutation.mutateAsync({ targets: [...multiplierSelection].map((key) => { const [channel_id, user] = key.split(':'); return { channel_id, user_id: Number(user) } }), multiplier: null })}>{t('批量清除')}</Button></div></div>
+        <div className='mt-3 grid gap-2 md:grid-cols-2'>{(multiplierUsers.data?.items ?? []).map((item) => { const key = `${item.channel_id}:${item.user_id}`; const checked = multiplierSelection.has(key); return <label key={key} className='border-border flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-xs'><input type='checkbox' checked={checked} onChange={() => setMultiplierSelection((current) => { const next = new Set(current); checked ? next.delete(key) : next.add(key); return next })} /><span className='min-w-0 flex-1'><b>{item.external_user_id || item.user_id}</b> · {item.channel_name}<span className='text-muted-foreground ml-2'>{item.multiplier}×</span></span></label> })}</div>
+        {!multiplierUsers.isLoading && !multiplierUsers.data?.items.length && <p className='text-muted-foreground mt-3 text-xs'>{t('暂无专属倍率用户')}</p>}
+      </div>
       <div className='grid divide-y xl:grid-cols-2 xl:divide-x xl:divide-y-0'>
         <BargainRequests query={requests} client={client} />
         <UserWelfarePanel

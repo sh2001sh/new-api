@@ -90,6 +90,22 @@ func BindTokenToMarketplaceGroup(consumerUserID, tokenID int, groupID string) er
 	return err
 }
 
+func BindTokenToMarketplaceRoutePool(userID, tokenID int, poolID string) (int, error) {
+	if !HasRoutePool(userID, poolID) {
+		return 0, errors.New("路由池不存在或无权访问")
+	}
+	token, err := identityapp.GetUserToken(userID, tokenID)
+	if err != nil {
+		return 0, err
+	}
+	token.Group = RoutePoolTokenGroupValue(poolID)
+	token.CrossGroupRetry = false
+	if err := identityapp.UpdateUserToken(token); err != nil {
+		return 0, err
+	}
+	return token.Id, nil
+}
+
 // BindTokenToMarketplaceGroupResult binds an existing token, or creates one
 // for the current user when tokenID is zero.
 func BindTokenToMarketplaceGroupResult(consumerUserID, tokenID int, groupID string) (int, error) {
