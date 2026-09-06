@@ -194,6 +194,14 @@ func ApplyV2Migrations(ctx context.Context, dryRun bool) error {
 
 	steps := []schemaMigrationStep{
 		{ID: "20260710_billing_core", Run: func(tx *gorm.DB) error {
+			if tx.Migrator().HasTable(&billingschema.BillingAccount{}) &&
+				tx.Migrator().HasTable(&billingschema.BillingBalanceSnapshot{}) &&
+				tx.Migrator().HasTable(&billingschema.BillingLedgerEntry{}) &&
+				tx.Migrator().HasTable(&billingschema.BillingReservation{}) &&
+				tx.Migrator().HasTable(&billingschema.BillingSettlement{}) &&
+				tx.Migrator().HasTable(&billingschema.BillingOutboxEvent{}) {
+				return nil
+			}
 			return tx.AutoMigrate(&billingschema.BillingAccount{}, &billingschema.BillingBalanceSnapshot{}, &billingschema.BillingLedgerEntry{}, &billingschema.BillingReservation{}, &billingschema.BillingSettlement{}, &billingschema.BillingOutboxEvent{})
 		}},
 		{ID: "20260710_workflow_core", Run: func(tx *gorm.DB) error {
