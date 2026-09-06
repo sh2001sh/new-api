@@ -22,6 +22,8 @@ export function AdminIncomeFilter(props: {
   isError: boolean
   onRelease: () => void
   releasing: boolean
+  reclaimAmount: string
+  onReclaimAmountChange: (value: string) => void
   selectedOwnerIDs: number[]
   onSelectedOwnerIDsChange: (ids: number[]) => void
 }) {
@@ -93,6 +95,7 @@ export function AdminIncomeFilter(props: {
           >
             <RefreshCcw className={props.isFetching ? 'animate-spin' : ''} />
           </Button>
+          <Input type='number' min='1' placeholder={t('部分回收额度')} value={props.reclaimAmount} onChange={(event) => props.onReclaimAmountChange(event.currentTarget.value)} className='w-32' aria-label={t('部分回收额度')} />
           <Button
             onClick={props.onRelease}
             disabled={

@@ -84,6 +84,7 @@ func ReleaseAdminOwnerIncome(input AdminOwnerIncomeQuery) (*AdminOwnerIncomeRele
 	result, err := marketplacesettlement.ReclaimPending(marketplacesettlement.ReleaseFilter{
 		OwnerUserIDs: ownerIDs, StartTimestamp: input.StartTimestamp,
 		EndTimestamp: input.EndTimestamp,
+		MaxAmount:    input.MaxAmount,
 	})
 	if err != nil {
 		return nil, err

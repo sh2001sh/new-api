@@ -439,6 +439,7 @@ func ReleaseAdminOwnerIncome(c *gin.Context) {
 	result, err := marketplaceapp.ReleaseAdminOwnerIncome(marketplaceapp.AdminOwnerIncomeQuery{
 		OwnerSearch: c.Query("owner_search"), OwnerUserIDs: queryIntList(c, "owner_user_ids"), StartTimestamp: queryInt64(c, "start_timestamp"),
 		EndTimestamp: queryInt64(c, "end_timestamp"),
+		MaxAmount:    queryInt64(c, "max_amount"),
 	})
 	respond(c, result, err)
 }

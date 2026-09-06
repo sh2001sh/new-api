@@ -687,7 +687,7 @@ export async function releaseAdminOwnerIncome(
   filters: Pick<
     AdminMarketplaceChannelFilters,
     'ownerSearch' | 'ownerUserIds' | 'startTimestamp' | 'endTimestamp'
-  >
+  > & { maxAmount?: number }
 ) {
   const search = new URLSearchParams()
   if (filters.ownerSearch) search.set('owner_search', filters.ownerSearch)
@@ -697,6 +697,8 @@ export async function releaseAdminOwnerIncome(
     search.set('start_timestamp', String(filters.startTimestamp))
   if (filters.endTimestamp)
     search.set('end_timestamp', String(filters.endTimestamp))
+  if (filters.maxAmount && filters.maxAmount > 0)
+    search.set('max_amount', String(filters.maxAmount))
   const response = await api.post<
     ApiResponse<{ reclaimed_count: number; reclaimed_amount: number }>
   >(`/api/marketplace/admin/owner-income/release?${search.toString()}`)

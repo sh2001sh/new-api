@@ -351,7 +351,7 @@ export function useAdminOwnerIncomeRelease() {
       filters: Pick<
         AdminMarketplaceChannelFilters,
         'ownerSearch' | 'ownerUserIds' | 'startTimestamp' | 'endTimestamp'
-      >
+      > & { maxAmount?: number }
     ) => releaseAdminOwnerIncome(filters),
     onSuccess: async () => {
       await Promise.all([

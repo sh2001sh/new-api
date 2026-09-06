@@ -171,6 +171,7 @@ type AdminOwnerIncomeQuery struct {
 	OwnerUserIDs   []int
 	StartTimestamp int64
 	EndTimestamp   int64
+	MaxAmount      int64
 }
 
 type AdminOwnerIncomeReleaseResult struct {

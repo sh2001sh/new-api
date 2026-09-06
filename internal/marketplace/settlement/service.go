@@ -43,6 +43,7 @@ type ReleaseFilter struct {
 	StartTimestamp int64
 	EndTimestamp   int64
 	Limit          int
+	MaxAmount      int64 // 0 means reclaim all matching released settlements
 }
 
 type ReleaseResult struct {
@@ -220,12 +221,17 @@ func ReclaimPending(filter ReleaseFilter) (ReclaimResult, error) {
 		return ReclaimResult{}, err
 	}
 	result := ReclaimResult{}
+	var selectedAmount int64
 	for index := range settlements {
+		if filter.MaxAmount > 0 && selectedAmount+settlements[index].OwnerNetAmount > filter.MaxAmount {
+			continue
+		}
 		if err := reclaimOne(settlements[index].ID); err != nil {
 			return result, err
 		}
 		result.Count++
 		result.Amount += settlements[index].OwnerNetAmount
+		selectedAmount += settlements[index].OwnerNetAmount
 	}
 	return result, nil
 }

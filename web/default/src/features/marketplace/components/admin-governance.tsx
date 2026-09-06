@@ -32,6 +32,7 @@ export function AdminGovernance() {
   const [incomeRange, setIncomeRange] = useState<AdminIncomeRange>({})
   const [ownerSearch, setOwnerSearch] = useState('')
   const [selectedOwnerIDs, setSelectedOwnerIDs] = useState<number[]>([])
+  const [reclaimAmount, setReclaimAmount] = useState('')
   const [channelSearch, setChannelSearch] = useState('')
   const [channelStatus, setChannelStatus] = useState('')
   const [channelSource, setChannelSource] = useState('')
@@ -87,10 +88,12 @@ export function AdminGovernance() {
         isFetching={query.isFetching || ownerIncomeQuery.isFetching}
         isError={ownerIncomeQuery.isError}
         releasing={releaseIncome.isPending}
+        reclaimAmount={reclaimAmount}
+        onReclaimAmountChange={setReclaimAmount}
         onRelease={() => {
           if (selectedOwnerIDs.length === 0) return
           if ((ownerIncomeQuery.data?.released_income ?? 0) <= 0) return
-          if (!window.confirm(t('确定立即回收当前筛选范围内已结算额度吗？')))
+          if (!window.confirm(reclaimAmount ? t('确定按输入额度回收当前筛选范围内的已结算收益吗？') : t('确定立即回收当前筛选范围内已结算额度吗？')))
             return
           releaseIncome.mutate(
             {
@@ -98,6 +101,7 @@ export function AdminGovernance() {
               ownerUserIds: selectedOwnerIDs,
               startTimestamp: toTimestamp(incomeRange.start),
               endTimestamp: toTimestamp(incomeRange.end),
+              maxAmount: reclaimAmount ? Number(reclaimAmount) : undefined,
             },
             {
               onSuccess: (result) => {
