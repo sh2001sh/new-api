@@ -130,15 +130,17 @@ func queryChangedUsageDays(ctx context.Context, lastLogID, maxLogID int64, fullB
 
 func aggregateUsageDays(ctx context.Context, days []string) ([]UserUsageDaily, []ChannelUsageDaily, error) {
 	day := usageDayExpression(platformdb.LogDB.Dialector.Name())
-	base := platformdb.LogDB.WithContext(ctx).Model(&auditschema.Log{}).
-		Where("type = ?", auditschema.LogTypeConsume).
-		Where(day+" IN ?", days)
+	newBaseQuery := func() *gorm.DB {
+		return platformdb.LogDB.WithContext(ctx).Model(&auditschema.Log{}).
+			Where("type = ?", auditschema.LogTypeConsume).
+			Where(day+" IN ?", days)
+	}
 	userRows := []UserUsageDaily{}
-	if err := base.Select(usageDailySelect(day, "user_id")).Group(day + ", user_id").Scan(&userRows).Error; err != nil {
+	if err := newBaseQuery().Select(usageDailySelect(day, "user_id")).Group(day + ", user_id").Scan(&userRows).Error; err != nil {
 		return nil, nil, err
 	}
 	channelRows := []ChannelUsageDaily{}
-	if err := base.Select(usageDailySelect(day, "channel_id")).Group(day + ", channel_id").Scan(&channelRows).Error; err != nil {
+	if err := newBaseQuery().Select(usageDailySelect(day, "channel_id")).Group(day + ", channel_id").Scan(&channelRows).Error; err != nil {
 		return nil, nil, err
 	}
 	return userRows, channelRows, nil

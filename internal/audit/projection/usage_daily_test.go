@@ -65,6 +65,25 @@ func TestRebuildUsageDailyInitializesCursorWithoutRescanningExistingHistory(t *t
 	require.Equal(t, int64(10), cursor.LastLogID)
 }
 
+func TestRebuildUsageDailyAggregatesMultipleUsersOnOneChannel(t *testing.T) {
+	db := setupUsageDailyTestDB(t)
+	now := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+	day := now.Format(time.DateOnly)
+	logs := []auditschema.Log{
+		{Id: 1, UserId: 7, ChannelId: 6, Type: auditschema.LogTypeConsume, CreatedAt: now.Unix(), PromptTokens: 10, CompletionTokens: 2, Quota: 12},
+		{Id: 2, UserId: 8, ChannelId: 6, Type: auditschema.LogTypeConsume, CreatedAt: now.Add(time.Minute).Unix(), PromptTokens: 20, CompletionTokens: 3, Quota: 23},
+	}
+	require.NoError(t, db.Create(&logs).Error)
+	require.NoError(t, rebuildUsageDailyAt(context.Background(), now))
+
+	var channel ChannelUsageDaily
+	require.NoError(t, db.Where("day = ? AND channel_id = ?", day, 6).First(&channel).Error)
+	require.Equal(t, int64(2), channel.RequestCount)
+	require.Equal(t, int64(30), channel.PromptTokens)
+	require.Equal(t, int64(5), channel.CompletionTokens)
+	require.Equal(t, int64(35), channel.Quota)
+}
+
 func TestUsageDayExpressionSupportsAllDatabaseDialects(t *testing.T) {
 	require.Equal(t, "date(created_at, 'unixepoch')", usageDayExpression("sqlite"))
 	require.Contains(t, usageDayExpression("postgres"), "AT TIME ZONE 'UTC'")
