@@ -49,6 +49,12 @@ function getGroupLabel(params: {
   if (params.labelOverride) return params.labelOverride
   if (params.isEmptyGroup) return params.t('User Group')
   if (params.isAutoGroup) return params.t('Auto')
+  if (params.groupName?.toLowerCase() === 'market:auto') {
+    return params.t('AUTO 路由池')
+  }
+  if (params.groupName?.toLowerCase().startsWith('market:pool:')) {
+    return `${params.t('路由池')} (${params.groupName.slice('market:pool:'.length)})`
+  }
   if (params.groupName?.toLowerCase().startsWith('market:')) {
     return params.t('市场分组')
   }

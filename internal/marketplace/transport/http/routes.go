@@ -22,6 +22,7 @@ func RegisterMarketplaceRoutes(apiRouter *gin.RouterGroup) {
 	marketplaceRoute := apiRouter.Group("/marketplace")
 	marketplaceRoute.Use(middleware.UserAuth())
 	{
+		marketplaceRoute.GET("/key-group-options", ListKeyGroupOptions)
 		marketplaceRoute.POST("/groups/:id/bind-token", middleware.CriticalRateLimit(), BindToken)
 		marketplaceRoute.POST("/groups/:id/invite", middleware.CriticalRateLimit(), CreateGroupInvite)
 		marketplaceRoute.POST("/invites/accept", middleware.CriticalRateLimit(), AcceptGroupInvite)

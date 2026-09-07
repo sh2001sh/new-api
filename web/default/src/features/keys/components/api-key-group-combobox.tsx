@@ -45,7 +45,11 @@ export type ApiKeyGroupOption = {
   subscriptionRatio?: number
   successRate?: number | null
   requestCount?: number
-  category?: 'official' | 'marketplace' | 'marketplace_auto' | 'marketplace_pool'
+  category?:
+    | 'official'
+    | 'marketplace'
+    | 'marketplace_auto'
+    | 'marketplace_pool'
   disabled?: boolean
   models?: string[]
   mappingStatus?: 'matched' | 'mismatch' | 'insufficient_evidence' | ''
@@ -186,7 +190,9 @@ export function ApiKeyGroupCombobox({
     (option) => option.category === undefined || option.category === 'official'
   )
   const marketplacePoolOptions = filteredOptions.filter(
-    (option) => option.category === 'marketplace_pool'
+    (option) =>
+      option.category === 'marketplace_pool' ||
+      option.category === 'marketplace_auto'
   )
   const marketplaceOptions = filteredOptions.filter(
     (option) => option.category === 'marketplace'
@@ -209,7 +215,10 @@ export function ApiKeyGroupCombobox({
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
           <span className='min-w-0'>
             <span className='block truncate font-medium'>
-              {selectedOption?.label || placeholder || t('Select a group')}
+              {selectedOption?.label ||
+                value ||
+                placeholder ||
+                t('Select a group')}
             </span>
             {selectedOption?.desc && (
               <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>

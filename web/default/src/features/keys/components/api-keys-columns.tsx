@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,7 +30,6 @@ import {
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { getSelectableMarketplaceGroups } from '../api'
 import { API_KEY_STATUSES } from '../constants'
 import { type ApiKey } from '../types'
 import {
@@ -41,6 +38,7 @@ import {
   IpRestrictionsCell,
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
+import { useApiKeyGroupOptions } from './use-api-key-group-options'
 
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10)
@@ -49,39 +47,12 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-success'
 }
 
-function useGroupRatios(): Record<string, number> {
-  const { data } = useQuery({
-    queryKey: ['user-self-groups'],
-    queryFn: getUserGroups,
-    staleTime: 5 * 60 * 1000,
-    select: (res) => {
-      if (!res.success || !res.data) return {}
-      const ratios: Record<string, number> = {}
-      for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number') {
-          ratios[group] = info.ratio
-        }
-      }
-      return ratios
-    },
-  })
-
-  return data ?? {}
-}
-
-function useMarketplaceGroupInfo() {
-  const { data = [] } = useQuery({
-    queryKey: ['selectable-marketplace-groups'],
-    queryFn: getSelectableMarketplaceGroups,
-    staleTime: 60 * 1000,
-  })
-  return Object.fromEntries(data.map((group) => [group.value, group]))
-}
-
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
-  const groupRatios = useGroupRatios()
-  const marketplaceGroupInfo = useMarketplaceGroupInfo()
+  const { options } = useApiKeyGroupOptions()
+  const groupInfo = Object.fromEntries(
+    options.map((option) => [option.value, option])
+  )
   return [
     {
       id: 'select',
@@ -211,10 +182,8 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       ),
       cell: ({ row }) => {
         const group = row.getValue('group') as string
-        const marketplaceGroup = marketplaceGroupInfo[group]
-        const ratio =
-          marketplaceGroup?.ratio ??
-          (group && group !== 'auto' ? groupRatios[group] : undefined)
+        const marketplaceGroup = groupInfo[group]
+        const ratio = marketplaceGroup?.ratio
 
         if (group === 'auto') {
           return (

@@ -18,111 +18,55 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import {
-  loadSelectableMarketplaceGroups,
-  type MarketplaceGroup,
-  type MarketplaceGroupPage,
-} from './marketplace-group-options'
+import { toApiKeyGroupOptions } from './marketplace-group-options'
 
-function createGroup(
-  id: string,
-  overrides: Partial<MarketplaceGroup> = {}
-): MarketplaceGroup {
-  return {
-    id,
-    system_display_name: `Group ${id}`,
-    source_label: 'Test source',
-    lifecycle_status: 'active',
-    verification_status: 'passed',
-    multiplier: 1,
-    subscription_enabled: true,
-    subscription_multiplier: 1,
-    models: ['gpt-5.6'],
-    ...overrides,
-  }
-}
-
-function createPage(
-  page: number,
-  total: number,
-  items: MarketplaceGroup[]
-): MarketplaceGroupPage {
-  return { page, total, items, page_size: 50 }
-}
-
-describe('loadSelectableMarketplaceGroups', () => {
-  test('loads all 65 groups from two pages', async () => {
-    const requestedPages: number[] = []
-    const groups = Array.from({ length: 65 }, (_, index) =>
-      createGroup(String(index + 1))
+describe('API key group option metadata', () => {
+  test('preserves named and empty pool names, token groups and model lists', () => {
+    const options = toApiKeyGroupOptions([
+      {
+        value: 'market:pool:one',
+        label: 'GPT 工作池',
+        category: 'marketplace_pool',
+        models: ['gpt-5.6'],
+      },
+      {
+        value: 'market:pool:empty',
+        label: 'Empty pool',
+        category: 'marketplace_pool',
+        models: [],
+      },
+      {
+        value: 'market:auto',
+        label: 'AUTO 路由池',
+        category: 'marketplace_auto',
+        models: ['claude'],
+      },
+    ])
+    const labels = Object.fromEntries(
+      options.map((option) => [option.value, option.label])
     )
-
-    const result = await loadSelectableMarketplaceGroups(async (page) => {
-      requestedPages.push(page)
-      const start = (page - 1) * 50
-      return createPage(page, groups.length, groups.slice(start, start + 50))
-    })
-
-    assert.deepEqual(requestedPages, [1, 2])
-    assert.equal(result.length, 65)
-    assert.equal(result.at(-1)?.id, '65')
+    assert.equal(labels['market:pool:one'], 'GPT 工作池')
+    assert.equal(labels['market:pool:empty'], 'Empty pool')
+    assert.equal(labels['market:auto'], 'AUTO 路由池')
+    assert.deepEqual(options[0].models, ['gpt-5.6'])
+    assert.equal(options[0].ratio, '动态')
   })
-
-  test('stops on an empty page when the reported total changes', async () => {
-    const requestedPages: number[] = []
-    const firstPage = Array.from({ length: 50 }, (_, index) =>
-      createGroup(String(index + 1))
-    )
-
-    const result = await loadSelectableMarketplaceGroups(async (page) => {
-      requestedPages.push(page)
-      if (page === 1) return createPage(page, 100, firstPage)
-      return createPage(page, 50, [])
-    })
-
-    assert.deepEqual(requestedPages, [1, 2])
-    assert.equal(result.length, 50)
-  })
-
-  test('de-duplicates IDs repeated across pages', async () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) =>
-      createGroup(String(index + 1))
-    )
-    const duplicate = createGroup('50', {
-      system_display_name: 'Updated group',
-    })
-
-    const result = await loadSelectableMarketplaceGroups(async (page) => {
-      if (page === 1) return createPage(page, 51, firstPage)
-      return createPage(page, 51, [duplicate, createGroup('51')])
-    })
-
-    assert.equal(result.length, 51)
-    assert.equal(
-      result.find((group) => group.id === '50')?.system_display_name,
-      'Updated group'
-    )
-  })
-
-  test('keeps only groups eligible for API Key selection', async () => {
-    const groups = [
-      createGroup('active'),
-      createGroup('degraded', { lifecycle_status: 'degraded' }),
-      createGroup('inactive', { lifecycle_status: 'inactive' }),
-      createGroup('unverified', { verification_status: 'pending' }),
-      createGroup('mismatch', { gpt56_mapping_status: 'mismatch' }),
-      createGroup('insufficient', {
-        gpt56_mapping_status: 'insufficient_evidence',
-      }),
-    ]
-
-    const result = await loadSelectableMarketplaceGroups(async () =>
-      createPage(1, groups.length, groups)
-    )
-
-    assert.deepEqual(
-      result.map((group) => group.id),
-      ['active', 'degraded', 'insufficient']
-    )
+  test('keeps personal prices and subscription metadata without fabricating statistics', () => {
+    const [option] = toApiKeyGroupOptions([
+      {
+        value: 'market:group',
+        label: 'Test',
+        category: 'marketplace',
+        multiplier: 0.7,
+        subscription_enabled: true,
+        subscription_multiplier: 1.4,
+        models: ['gpt-5.6'],
+      },
+    ])
+    assert.equal(option.ratio, 0.7)
+    assert.equal(option.subscriptionRatio, 1.4)
+    assert.equal(option.subscriptionEnabled, true)
+    assert.equal(option.successRate, undefined)
+    assert.deepEqual(toApiKeyGroupOptions([]), [])
   })
 })

@@ -170,6 +170,15 @@ func loadPublicGroupsBySlug(query GroupQuery, slug string) ([]marketplaceschema.
 }
 
 func loadPublicGroups(query GroupQuery) ([]marketplaceschema.Group, map[string]marketplaceschema.Channel, error) {
+	groups, err := loadPublicGroupRows(query)
+	if err != nil {
+		return nil, nil, err
+	}
+	channels, err := marketplaceChannelReadMap(groups)
+	return groups, channels, err
+}
+
+func loadPublicGroupRows(query GroupQuery) ([]marketplaceschema.Group, error) {
 	dbQuery := platformdb.DB.Model(&marketplaceschema.Group{}).Select(marketplaceGroupColumns())
 	// Suspended and disabled channels are operationally unavailable and must
 	// not leak into public discovery, even when a status filter is supplied.
@@ -200,10 +209,9 @@ func loadPublicGroups(query GroupQuery) ([]marketplaceschema.Group, map[string]m
 	}
 	var groups []marketplaceschema.Group
 	if err := dbQuery.Order("updated_at DESC, id ASC").Limit(1000).Find(&groups).Error; err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	channels, err := marketplaceChannelReadMap(groups)
-	return groups, channels, err
+	return groups, nil
 }
 
 func marketplaceGroupColumns() string {

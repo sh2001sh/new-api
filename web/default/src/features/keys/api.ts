@@ -17,10 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import {
-  loadSelectableMarketplaceGroups,
-  type MarketplaceGroupPage,
-} from './lib/marketplace-group-options'
+import type { KeyGroupOptionResponse } from './lib/marketplace-group-options'
 import type {
   ApiKey,
   ApiResponse,
@@ -50,21 +47,6 @@ export interface DesktopImportLinkResponse {
   tool: string
   token_name: string
   provider_name: string
-}
-
-export interface ApiKeyGroupOptionData {
-  value: string
-  label: string
-  desc: string
-  ratio?: number | string
-  subscriptionEnabled?: boolean
-  subscriptionRatio?: number
-  successRate?: number | null
-  requestCount?: number
-  category: 'official' | 'marketplace' | 'marketplace_auto'
-  disabled?: boolean
-  models?: string[]
-  mappingStatus?: 'matched' | 'mismatch' | 'insufficient_evidence' | ''
 }
 
 // ============================================================================
@@ -179,40 +161,12 @@ export async function createDesktopImportLink(
   return res.data
 }
 
-export async function getSelectableMarketplaceGroups(): Promise<
-  ApiKeyGroupOptionData[]
-> {
-  const groups = await loadSelectableMarketplaceGroups(
-    async (page, pageSize) => {
-      const query = new URLSearchParams({
-        page: String(page),
-        page_size: String(pageSize),
-        include_access: 'true',
-        sort: 'score',
-        direction: 'desc',
-        window_hours: '24',
-      })
-      const res = await api.get<ApiResponse<MarketplaceGroupPage>>(
-        `/api/marketplace/groups?${query.toString()}`
-      )
-      if (!res.data.success || !res.data.data) {
-        throw new Error(res.data.message || 'Failed to load marketplace groups')
-      }
-      return res.data.data
-    }
+export async function getMarketplaceKeyGroupOptions() {
+  const res = await api.get<ApiResponse<KeyGroupOptionResponse[]>>(
+    '/api/marketplace/key-group-options'
   )
-
-  return groups.map((group) => ({
-    value: `market:${group.id}`,
-    label: group.system_display_name,
-    desc: `${group.source_label || '来源待审核'} · 余额与套餐均可使用`,
-    ratio: group.multiplier,
-    subscriptionEnabled: group.subscription_enabled,
-    subscriptionRatio: group.subscription_multiplier,
-    successRate: group.success_rate,
-    requestCount: group.request_count,
-    mappingStatus: group.gpt56_mapping_status || '',
-    category: 'marketplace' as const,
-    models: group.models,
-  }))
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || 'Failed to load marketplace groups')
+  }
+  return res.data.data
 }

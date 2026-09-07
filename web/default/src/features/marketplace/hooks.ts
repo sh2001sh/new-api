@@ -121,7 +121,7 @@ export function useMarketplaceAutoRoutePoolUpdate() {
     onSuccess: async (data) => {
       queryClient.setQueryData(['marketplace-auto-route-pool'], data)
       await queryClient.invalidateQueries({
-        queryKey: ['api-key-marketplace-auto-pool'],
+        queryKey: ['api-key-group-options'],
       })
     },
   })
@@ -157,7 +157,7 @@ export function useMarketplaceRoutePoolCreate() {
         exact: true,
       })
       void queryClient.invalidateQueries({
-        queryKey: ['api-key-marketplace-route-pools'],
+        queryKey: ['api-key-group-options'],
       })
     },
   })
@@ -174,8 +174,7 @@ export function useMarketplaceRoutePoolUpdate() {
         refetchType: 'inactive',
       })
       void queryClient.invalidateQueries({
-        queryKey: ['api-key-marketplace-route-pools'],
-        refetchType: 'inactive',
+        queryKey: ['api-key-group-options'],
       })
     },
   })
@@ -192,7 +191,7 @@ export function useMarketplaceRoutePoolDelete() {
           queryKey: ['marketplace-route-pools'],
         }),
         queryClient.invalidateQueries({
-          queryKey: ['api-key-marketplace-route-pools'],
+          queryKey: ['api-key-group-options'],
         }),
       ])
     },
@@ -293,6 +292,7 @@ export function useMarketplaceMutations() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['marketplace-groups'] }),
       invalidateChannels(),
+      queryClient.invalidateQueries({ queryKey: ['api-key-group-options'] }),
     ])
   }
   return {
@@ -468,7 +468,7 @@ export function useMarketplaceChannelUpdate(admin: boolean) {
         queryKey: ['marketplace-multiplier-trends'],
       })
       await queryClient.invalidateQueries({
-        queryKey: ['selectable-marketplace-groups'],
+        queryKey: ['api-key-group-options'],
       })
     },
   })
@@ -490,10 +490,7 @@ export function useMarketplaceChannelDelete(admin: boolean) {
           queryKey: ['marketplace-auto-route-pool'],
         }),
         queryClient.invalidateQueries({
-          queryKey: ['selectable-marketplace-groups'],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['api-key-marketplace-auto-pool'],
+          queryKey: ['api-key-group-options'],
         }),
       ])
     },

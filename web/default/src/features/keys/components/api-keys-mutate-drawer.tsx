@@ -78,7 +78,12 @@ export function ApiKeysMutateDrawer({
   })
 
   const models = modelsData?.data || []
-  const groups = useApiKeyGroupOptions()
+  const {
+    options: groups,
+    isPending: groupsLoading,
+    error: groupsError,
+    refetch: reloadGroups,
+  } = useApiKeyGroupOptions()
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const schema = getApiKeyFormSchema(t)
 
@@ -102,19 +107,8 @@ export function ApiKeysMutateDrawer({
     }
   }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
 
-  // Correct group after groups load: if the form value is not in available groups, fall back
-  useEffect(() => {
-    if (groups.length === 0) return
-    const currentGroup = form.getValues('group')
-    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
-      const fallback =
-        groups.find((g) => g.value === 'default')?.value ??
-        groups[0]?.value ??
-        ''
-      form.setValue('group', fallback)
-      form.setValue('cross_group_retry', fallback === 'auto')
-    }
-  }, [groups, form])
+  // Keep the saved group even when metadata is still loading or has become
+  // unavailable. Changing groups must be an explicit user action.
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
@@ -208,6 +202,27 @@ export function ApiKeysMutateDrawer({
             {t("Click save when you're done.")}
           </SheetDescription>
         </SheetHeader>
+        {groupsLoading && (
+          <p role='status' className='text-muted-foreground px-4 py-2 text-sm'>
+            {t('Loading...')}
+          </p>
+        )}
+        {groupsError && (
+          <div
+            role='alert'
+            className='text-destructive flex items-center justify-between px-4 py-2 text-sm'
+          >
+            <span>{t('Unable to load groups')}</span>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => void reloadGroups()}
+            >
+              {t('Retry')}
+            </Button>
+          </div>
+        )}
         <Form {...form}>
           <ApiKeyFormContent
             form={form}
