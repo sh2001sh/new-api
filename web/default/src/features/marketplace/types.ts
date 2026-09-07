@@ -383,6 +383,7 @@ export interface MarketplaceOwnerUsageLog {
   platform_commission: number
   multiplier: number
   income_status: 'pending' | 'released' | 'reclaimed' | 'none'
+  reclaimed_income: number
   available_at?: string | null
   released_at?: string | null
 }
@@ -405,6 +406,7 @@ export interface MarketplaceOwnerUsageLogResult {
 }
 
 export interface MarketplaceOwnerUsageLogFilters {
+  summaryOnly?: boolean
   channelId?: string
   status?: 'success' | 'failed'
   modelName?: string
@@ -463,7 +465,10 @@ export interface MarketplaceRoutePoolSummary {
   models: string[]
 }
 
-export interface MarketplaceRoutePool extends Omit<MarketplaceAutoRoutePool, 'token_group'> {
+export interface MarketplaceRoutePool extends Omit<
+  MarketplaceAutoRoutePool,
+  'token_group'
+> {
   id: string
   name: string
   token_group: string
@@ -532,23 +537,62 @@ export interface MarketplaceBargainRequest {
   resolved_at?: string
 }
 
-export interface MarketplaceBargainRequestList { items: MarketplaceBargainRequest[]; total: number; page: number; page_size: number }
+export interface MarketplaceBargainRequestList {
+  items: MarketplaceBargainRequest[]
+  total: number
+  page: number
+  page_size: number
+}
 
 export interface MarketplaceOwnerUsageItem {
-  user_id: string; external_user_id: string; channel_id: string; channel_name: string; group_id: string
-  request_count: number; success_count: number; failed_count: number; success_rate: number; total_tokens: number
-  total_consumer_amount: number; user_multiplier?: number; last_request_at: string
+  user_id: string
+  external_user_id: string
+  channel_id: string
+  channel_name: string
+  group_id: string
+  request_count: number
+  success_count: number
+  failed_count: number
+  success_rate: number
+  total_tokens: number
+  total_consumer_amount: number
+  user_multiplier?: number
+  last_request_at: string
 }
 
-export interface MarketplaceOwnerUsageResult { items: MarketplaceOwnerUsageItem[]; total: number; page: number; page_size: number }
+export interface MarketplaceOwnerUsageResult {
+  items: MarketplaceOwnerUsageItem[]
+  total: number
+  page: number
+  page_size: number
+}
 
 export interface MarketplaceOwnerMultiplierItem {
-  channel_id: string; user_id: number; external_user_id: string; channel_name: string
-  public_multiplier: number; multiplier: number; updated_at: string
+  channel_id: string
+  user_id: number
+  external_user_id: string
+  channel_name: string
+  public_multiplier: number
+  multiplier: number
+  updated_at: string
 }
 export interface MarketplaceMultiplierNotice {
-  id: number; channel_id: string; channel_name: string; previous_multiplier: number
-  multiplier: number; cleared: boolean; source: 'bargain' | 'manual'; read_at?: string | null; created_at: string
+  id: number
+  channel_id: string
+  channel_name: string
+  previous_multiplier: number
+  multiplier: number
+  cleared: boolean
+  source: 'bargain' | 'manual'
+  read_at?: string | null
+  created_at: string
 }
 
-export interface MarketplaceTimeRangeMultiplier { id: string; channel_id: string; start_timestamp: number; end_timestamp: number; multiplier: number; label: string }
+export interface MarketplaceTimeRangeMultiplier {
+  id: string
+  channel_id: string
+  start_timestamp: number
+  end_timestamp: number
+  multiplier: number
+  label: string
+}

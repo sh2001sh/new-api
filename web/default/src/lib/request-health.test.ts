@@ -5,10 +5,14 @@ import { classifyRequestHealth, getRequestHealthLabel } from './request-health'
 describe('classifyRequestHealth', () => {
   test('uses the shared request-health thresholds', () => {
     assert.equal(classifyRequestHealth(100, 0), 'unknown')
-    assert.equal(classifyRequestHealth(90, 1), 'healthy')
+    assert.equal(classifyRequestHealth(90.01, 1), 'healthy')
+    assert.equal(classifyRequestHealth(90, 1), 'unstable')
     assert.equal(classifyRequestHealth(89.99, 1), 'unstable')
     assert.equal(classifyRequestHealth(85, 1), 'unstable')
-    assert.equal(classifyRequestHealth(84.99, 1), 'failed')
+    assert.equal(classifyRequestHealth(75, 1), 'unstable')
+    assert.equal(classifyRequestHealth(74.99, 1), 'failed')
+    assert.equal(classifyRequestHealth(1, 100), 'failed')
+    assert.equal(classifyRequestHealth(Number.NaN, 1), 'unknown')
   })
 
   test('uses one label vocabulary across request-health surfaces', () => {

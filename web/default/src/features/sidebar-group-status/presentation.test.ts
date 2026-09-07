@@ -57,9 +57,9 @@ describe('group status presentation', () => {
       success_rate: 100,
       sample_window: 0.5,
       series: [
-        { ts: 1, success_rate: 90, request_count: 1 },
-        { ts: 2, success_rate: 85, request_count: 1 },
-        { ts: 3, success_rate: 84.99, request_count: 1 },
+        { ts: 1, success_rate: 90.01, request_count: 1 },
+        { ts: 2, success_rate: 75, request_count: 1 },
+        { ts: 3, success_rate: 74.99, request_count: 1 },
         { ts: 4, success_rate: null, request_count: 0 },
       ],
     })

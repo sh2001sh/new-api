@@ -3,20 +3,20 @@ import { ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   useAdminMarketplaceChannels,
-  useAdminOwnerIncome,
-  useAdminOwnerIncomeRelease,
   useMarketplaceFailedModelRemoval,
 } from '../hooks'
 import { MARKETPLACE_SOURCE_OPTIONS } from '../lib/channel-form'
 import { hasGPT56Model } from '../lib/verification'
 import type { MarketplaceChannel } from '../types'
 import { AdminChannelActions } from './admin-channel-actions'
-import { AdminIncomeFilter, type AdminIncomeRange } from './admin-income-filter'
+import type { AdminIncomeRange } from './admin-income-filter'
+import { AdminOwnerIncomePanel } from './admin-owner-income-panel'
 import { ChannelDeleteDialog } from './channel-delete-dialog'
 import { ChannelEditDialog } from './channel-edit-dialog'
 import { GPT56MappingStatusView } from './gpt56-mapping-report'
@@ -31,8 +31,6 @@ export function AdminGovernance() {
   const { t } = useTranslation()
   const [incomeRange, setIncomeRange] = useState<AdminIncomeRange>({})
   const [ownerSearch, setOwnerSearch] = useState('')
-  const [selectedOwnerIDs, setSelectedOwnerIDs] = useState<number[]>([])
-  const [reclaimAmount, setReclaimAmount] = useState('')
   const [channelSearch, setChannelSearch] = useState('')
   const [channelStatus, setChannelStatus] = useState('')
   const [channelSource, setChannelSource] = useState('')
@@ -55,12 +53,6 @@ export function AdminGovernance() {
     },
     true
   )
-  const ownerIncomeQuery = useAdminOwnerIncome({
-    ownerSearch: deferredOwnerSearch,
-    startTimestamp: toTimestamp(incomeRange.start),
-    endTimestamp: toTimestamp(incomeRange.end),
-  })
-  const releaseIncome = useAdminOwnerIncomeRelease()
   const failedModelRemoval = useMarketplaceFailedModelRemoval(true)
   const [editing, setEditing] = useState<MarketplaceChannel | null>(null)
   const [deleting, setDeleting] = useState<MarketplaceChannel | null>(null)
@@ -75,52 +67,11 @@ export function AdminGovernance() {
           )}
         </p>
       </div>
-      <AdminIncomeFilter
-        report={ownerIncomeQuery.data}
+      <AdminOwnerIncomePanel
         ownerSearch={ownerSearch}
         onOwnerSearchChange={setOwnerSearch}
         range={incomeRange}
         onRangeChange={setIncomeRange}
-        onRefresh={() => {
-          void query.refetch()
-          void ownerIncomeQuery.refetch()
-        }}
-        isFetching={query.isFetching || ownerIncomeQuery.isFetching}
-        isError={ownerIncomeQuery.isError}
-        releasing={releaseIncome.isPending}
-        reclaimAmount={reclaimAmount}
-        onReclaimAmountChange={setReclaimAmount}
-        onRelease={() => {
-          if (selectedOwnerIDs.length === 0) return
-          if ((ownerIncomeQuery.data?.released_income ?? 0) <= 0) return
-          if (!window.confirm(reclaimAmount ? t('确定按输入额度回收当前筛选范围内的已结算收益吗？') : t('确定立即回收当前筛选范围内已结算额度吗？')))
-            return
-          releaseIncome.mutate(
-            {
-              ownerSearch: deferredOwnerSearch,
-              ownerUserIds: selectedOwnerIDs,
-              startTimestamp: toTimestamp(incomeRange.start),
-              endTimestamp: toTimestamp(incomeRange.end),
-              maxAmount: reclaimAmount ? Number(reclaimAmount) : undefined,
-            },
-            {
-              onSuccess: (result) => {
-                toast.success(
-                  t('已回收 {{count}} 条额度，共 {{amount}}', {
-                    count: result.reclaimed_count,
-                    amount: formatQuota(result.reclaimed_amount),
-                  })
-                )
-              },
-              onError: (error) =>
-                toast.error(
-                  error instanceof Error ? error.message : t('额度回收失败')
-                ),
-            }
-          )
-        }}
-        selectedOwnerIDs={selectedOwnerIDs}
-        onSelectedOwnerIDsChange={setSelectedOwnerIDs}
       />
       <div className='border-border bg-muted/10 flex flex-wrap items-center gap-2 rounded-md border p-3'>
         <Input
@@ -202,6 +153,17 @@ export function AdminGovernance() {
             {Array.from({ length: 5 }).map((_, index) => (
               <Skeleton key={index} className='h-24 w-full' />
             ))}
+          </div>
+        ) : query.isError ? (
+          <div role='alert' className='text-destructive px-4 py-8 text-sm'>
+            {t('渠道数据加载失败')}
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => void query.refetch()}
+            >
+              {t('重试')}
+            </Button>
           </div>
         ) : (query.data ?? []).length === 0 ? (
           <div className='px-4 py-12 text-center text-sm'>

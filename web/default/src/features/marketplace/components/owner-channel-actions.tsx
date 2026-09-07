@@ -50,7 +50,7 @@ export function OwnerChannelActions(props: {
         const invite = await mutations.createInvite.mutateAsync(
           channel.group_id
         )
-        const url = `${window.location.origin}/marketplace?invite=${encodeURIComponent(invite.token)}`
+        const url = `${window.location.origin}/market?invite=${encodeURIComponent(invite.token)}`
         const copied = await copyToClipboard(url)
         if (!copied) throw new Error(t('复制邀请链接失败，请手动复制'))
         toast.success(t('邀请链接已复制；有效期 30 天'))

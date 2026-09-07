@@ -32,12 +32,19 @@ import {
   Wallet,
   Waypoints,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { getCurrencyLabel } from '@/lib/currency'
 import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
 import { getConfiguredServerAddress } from '@/lib/server-url'
+import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   getUserGroupOverview,
   getUserQuotaDates,
@@ -70,6 +77,7 @@ function parseCacheTokens(other: string): number {
 }
 
 export function DawnOverviewDashboard() {
+  const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const [range, setRange] = useState<TimeRange>('24h')
   const [queryNow, setQueryNow] = useState(() => Math.floor(Date.now() / 1000))
@@ -259,7 +267,8 @@ export function DawnOverviewDashboard() {
             {(['24h', '7d', '30d'] as TimeRange[]).map((value) => (
               <button
                 key={value}
-                className={`rngb${range === value ? ' on' : ''}`}
+                className={cn('rngb', range === value && 'on')}
+                aria-pressed={range === value}
                 onClick={() => {
                   setQueryNow(Math.floor(Date.now() / 1000))
                   setRange(value)
@@ -423,32 +432,47 @@ export function DawnOverviewDashboard() {
               <div className='ubars'>
                 {bars.map((bar, index) => (
                   <div className='u1' key={`${bar.label}-${index}`}>
-                    <div
-                      className='bar2'
-                      data-v={bar.value > 0 ? formatQuota(bar.value) : '0'}
-                      style={{ height: `${bar.height}%` }}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type='button'
+                            className='bar2'
+                            aria-label={`${bar.label} · ${formatQuota(bar.value)}`}
+                            style={{ height: `${bar.height}%` }}
+                          />
+                        }
+                      />
+                      <TooltipContent>
+                        {bar.label} · {formatQuota(bar.value)}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                {bars.map((bar, index) => (
-                  <span
-                    key={`${bar.label}-${index}`}
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      fontFamily: 'var(--dawn-mono)',
-                      fontSize: 9,
-                      color: 'var(--dawn-ink2)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {bar.label}
-                  </span>
-                ))}
+              <div className='mt-2 flex justify-between gap-2'>
+                {bars
+                  .filter(
+                    (_bar, index) =>
+                      index % Math.max(1, Math.ceil((bars.length - 1) / 4)) ===
+                        0 || index === bars.length - 1
+                  )
+                  .map((bar, index) => (
+                    <span
+                      key={`${bar.label}-${index}`}
+                      style={{
+                        textAlign: 'center',
+                        fontFamily: 'var(--dawn-mono)',
+                        fontSize: 9,
+                        color: 'var(--dawn-ink2)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {bar.label}
+                    </span>
+                  ))}
               </div>
             </>
           )}
@@ -458,7 +482,10 @@ export function DawnOverviewDashboard() {
           <div className='ph2'>
             <PieChart size={15} />
             Token 构成
-            <span className='win'>{range.toUpperCase()} · 全部调用</span>
+            <span className='win'>
+              {range.toUpperCase()} ·{' '}
+              {t('最近 {{count}} 条调用', { count: logs.length })}
+            </span>
           </div>
           <div className='donutwrap'>
             <div className='donut' style={donutStyle} />
@@ -474,7 +501,7 @@ export function DawnOverviewDashboard() {
                 <b>{formatCompactNumber(tokenSplit.output)}</b>
               </div>
               <div className='li'>
-                <i style={{ background: '#E9E2D8' }} />
+                <i style={{ background: 'var(--dawn-ok)' }} />
                 缓存读取
                 <b>{formatCompactNumber(tokenSplit.cache)}</b>
               </div>

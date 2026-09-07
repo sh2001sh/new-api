@@ -1,12 +1,12 @@
 import { classifyRequestHealth } from '@/lib/request-health'
 import type { MarketplaceGroup } from '../types'
 
-const RECENT_REQUEST_SEGMENTS = 12
-const DEFAULT_BUCKET_SECONDS = 3600
+const RECENT_REQUEST_SEGMENTS = 24
+const DEFAULT_BUCKET_SECONDS = 900
 
 type RecentRequestBucket = MarketplaceGroup['recent_request_series'][number]
 
-/** Normalizes partial or missing API data into a fixed twelve-hour status strip. */
+/** Fills missing intervals in the six-hour, fifteen-minute status strip. */
 export function normalizeRecentRequestSeries(
   series: MarketplaceGroup['recent_request_series'] | null | undefined,
   bucketSeconds: number,

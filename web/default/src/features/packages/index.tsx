@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { Activity, BookOpenText, ChevronDown, Crown, RefreshCw, Wallet } from 'lucide-react'
+import {
+  Activity,
+  BookOpenText,
+  ChevronDown,
+  Crown,
+  RefreshCw,
+  Wallet,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -34,8 +41,8 @@ import type {
   SubscriptionPurchaseType,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
-import { getEpayMethods } from '@/features/wallet/components/subscription-plans-card'
 import { ResetOpportunityEntryCard } from '@/features/wallet/components/reset-opportunity-entry-card'
+import { getEpayMethods } from '@/features/wallet/components/subscription-plans-card'
 import { WalletWorkspaceShell } from '@/features/wallet/components/wallet-workspace-shell'
 import { useWalletWorkspace } from '@/features/wallet/hooks/use-wallet-workspace'
 import { CurrentPackagePanel, PlanZone } from './components'
@@ -188,7 +195,9 @@ export function PackagesPage() {
                   </div>
                 </div>
                 <div className='min-w-0'>
-                  <div className='text-muted-foreground text-xs'>账本累计消耗</div>
+                  <div className='text-muted-foreground text-xs'>
+                    账本累计消耗
+                  </div>
                   <div className='text-foreground mt-1 truncate text-lg font-semibold tabular-nums'>
                     {formatQuotaDisplay(workspace.user?.used_quota)}
                   </div>
@@ -215,6 +224,7 @@ export function PackagesPage() {
             </CardStaggerItem>
             <CardStaggerItem>
               <CurrentPackagePanel
+                onRenew={openPurchase}
                 subscriptions={workspace.subscriptionData?.subscriptions || []}
                 plans={workspace.publicPlans}
                 loading={workspace.subscriptionLoading}
@@ -276,7 +286,9 @@ export function PackagesPage() {
                       loading={workspace.publicPlansLoading}
                       onPurchase={openPurchase}
                       purchaseCountMap={purchaseCountMap}
-                      currentSubscription={currentSubscription}
+                      subscriptions={
+                        workspace.subscriptionData?.subscriptions ?? []
+                      }
                       onFuel={openFuel}
                     />
                   )
@@ -289,7 +301,9 @@ export function PackagesPage() {
                     loading={workspace.publicPlansLoading}
                     onPurchase={openPurchase}
                     purchaseCountMap={purchaseCountMap}
-                    currentSubscription={currentSubscription}
+                    subscriptions={
+                      workspace.subscriptionData?.subscriptions ?? []
+                    }
                     onFuel={openFuel}
                   />
                 )}
@@ -298,7 +312,7 @@ export function PackagesPage() {
           </CardStaggerContainer>
         }
         sidebar={
-          <aside className='space-y-4 lg:sticky lg:top-4'>
+          <div className='space-y-4'>
             <ResetOpportunityEntryCard
               resetOpportunity={
                 workspace.subscriptionData?.reset_opportunity ?? {
@@ -313,7 +327,7 @@ export function PackagesPage() {
               compact
               title='套餐额度刷新'
             />
-          </aside>
+          </div>
         }
       />
 

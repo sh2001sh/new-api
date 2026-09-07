@@ -20,9 +20,10 @@ import type { MarketplaceGroup } from '../types'
 
 export const RecentRequestStrip = memo(function RecentRequestStrip(props: {
   group: MarketplaceGroup
+  compact?: boolean
 }) {
   const { t, i18n } = useTranslation()
-  const bucketSeconds = props.group.recent_request_bucket_seconds || 3600
+  const bucketSeconds = props.group.recent_request_bucket_seconds || 900
   const series = useMemo(
     () =>
       normalizeRecentRequestSeries(
@@ -41,21 +42,27 @@ export const RecentRequestStrip = memo(function RecentRequestStrip(props: {
     [i18n.language]
   )
   const latestStatus = resolveRecentRequestStatus(series)
-  const hasRecentTraffic = series.some((bucket) => bucket.request_count > 0)
-  if (!hasRecentTraffic) return null
   const threshold = t(
-    '每个色块代表 1 小时：90%（含）以上绿色，75%（含）至 90%（不含）黄色，低于 75% 红色，灰色表示无请求'
+    '每个色块代表 15 分钟：大于 90% 绿色，75% 至 90% 黄色，低于 75% 红色，灰色表示无请求'
   )
 
   return (
-    <div className='mt-1.5 min-w-0'>
-      <div className='mb-1 flex items-center justify-between gap-2 text-[11px]'>
-        <span className='text-muted-foreground'>{t('最近请求状态')}</span>
-        <RequestStatus status={latestStatus} t={t} />
-      </div>
+    <div
+      className='mt-1.5 w-full min-w-0'
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {!props.compact && (
+        <div className='mb-1 flex items-center justify-between gap-2 text-[11px]'>
+          <span className='text-muted-foreground'>
+            {t('近 6 小时 · 每格 15 分钟')}
+          </span>
+          <RequestStatus status={latestStatus} t={t} />
+        </div>
+      )}
       <div
         className='flex w-full gap-0.5'
-        aria-label={`${t('近 12 小时请求状态')}。${threshold}`}
+        aria-label={`${t('近 6 小时请求状态')}。${threshold}`}
       >
         {series.map((bucket, index) => {
           const range = formatBucketRange(bucket.ts, bucketSeconds, formatter)
@@ -74,10 +81,10 @@ export const RecentRequestStrip = memo(function RecentRequestStrip(props: {
                   />
                 }
               />
-              <TooltipContent side='top' className='max-w-none text-foreground'>
+              <TooltipContent side='top' role='tooltip' className='max-w-none'>
                 <div className='space-y-0.5'>
                   <div className='font-medium'>{range}</div>
-                    <div className='text-muted-foreground text-xs'>{summary}</div>
+                  <div className='text-xs opacity-90'>{summary}</div>
                 </div>
               </TooltipContent>
             </Tooltip>

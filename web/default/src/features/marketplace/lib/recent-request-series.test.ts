@@ -6,18 +6,19 @@ import {
 } from './recent-request-series'
 
 describe('recent request series', () => {
-  test('fills missing intervals so the market strip always has twelve cells', () => {
-    const bucketSeconds = 1800
-    const now = 12 * bucketSeconds
+  test('fills missing intervals into six hours of fifteen-minute cells', () => {
+    const bucketSeconds = 900
+    const now = 24 * bucketSeconds
     const series = normalizeRecentRequestSeries(
-      [{ ts: 11 * bucketSeconds, success_rate: 95, request_count: 4 }],
+      [{ ts: 23 * bucketSeconds, success_rate: 95, request_count: 4 }],
       bucketSeconds,
       now
     )
 
-    assert.equal(series.length, 12)
+    assert.equal(series.length, 24)
+    assert.equal(series[0].ts, bucketSeconds)
     assert.deepEqual(series.at(-2), {
-      ts: 11 * bucketSeconds,
+      ts: 23 * bucketSeconds,
       success_rate: 95,
       request_count: 4,
     })

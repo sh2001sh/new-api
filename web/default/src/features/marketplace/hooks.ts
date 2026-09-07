@@ -11,7 +11,6 @@ import {
   getMarketplaceGroups,
   getMarketplaceMultiplierTrends,
   getMarketplaceAutoRoutePool,
-
   getMarketplaceRoutePools,
   getMarketplaceRoutePool,
   bindMarketplaceRoutePoolToken,
@@ -35,7 +34,10 @@ import {
   updateMarketplaceAutoRoutePool,
   startMarketplaceBatchTest,
   getMarketplaceBatchTest,
-  getOwnerMultipliers, batchSetMarketplaceUserMultipliers, getMarketplaceMultiplierNotices, readMarketplaceMultiplierNotice,
+  getOwnerMultipliers,
+  batchSetMarketplaceUserMultipliers,
+  getMarketplaceMultiplierNotices,
+  readMarketplaceMultiplierNotice,
 } from './api'
 import type {
   AdminMarketplaceChannelFilters,
@@ -143,19 +145,22 @@ export function useMarketplaceRoutePool(id: string) {
   })
 }
 
-function useRoutePoolInvalidation() {
-  const queryClient = useQueryClient()
-  return async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['marketplace-route-pools'] }),
-      queryClient.invalidateQueries({ queryKey: ['api-key-marketplace-route-pools'] }),
-    ])
-  }
-}
-
 export function useMarketplaceRoutePoolCreate() {
-  const invalidate = useRoutePoolInvalidation()
-  return useMutation({ mutationFn: createMarketplaceRoutePool, onSuccess: invalidate })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createMarketplaceRoutePool,
+    onSuccess: () => {
+      // Creation is complete when the write succeeds; background list refreshes
+      // must not keep the form pending or reload the previously selected pool.
+      void queryClient.invalidateQueries({
+        queryKey: ['marketplace-route-pools'],
+        exact: true,
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['api-key-marketplace-route-pools'],
+      })
+    },
+  })
 }
 
 export function useMarketplaceRoutePoolUpdate() {
@@ -183,17 +188,52 @@ export function useMarketplaceRoutePoolDelete() {
     onSuccess: async (_result, id) => {
       queryClient.removeQueries({ queryKey: ['marketplace-route-pools', id] })
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['marketplace-route-pools'] }),
-        queryClient.invalidateQueries({ queryKey: ['api-key-marketplace-route-pools'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['marketplace-route-pools'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['api-key-marketplace-route-pools'],
+        }),
       ])
     },
   })
 }
 
-export function useOwnerMultipliers() { return useQuery({ queryKey: ['marketplace-owner-multipliers'], queryFn: getOwnerMultipliers, staleTime: 15_000 }) }
-export function useBatchSetOwnerMultipliers() { const client = useQueryClient(); return useMutation({ mutationFn: batchSetMarketplaceUserMultipliers, onSuccess: () => void client.invalidateQueries({ queryKey: ['marketplace-owner-multipliers'] }) }) }
-export function useMarketplaceMultiplierNotices(enabled = true) { return useQuery({ queryKey: ['marketplace-multiplier-notices'], queryFn: getMarketplaceMultiplierNotices, enabled, refetchInterval: 30_000 }) }
-export function useReadMarketplaceMultiplierNotice() { const client = useQueryClient(); return useMutation({ mutationFn: readMarketplaceMultiplierNotice, onSuccess: () => void client.invalidateQueries({ queryKey: ['marketplace-multiplier-notices'] }) }) }
+export function useOwnerMultipliers() {
+  return useQuery({
+    queryKey: ['marketplace-owner-multipliers'],
+    queryFn: getOwnerMultipliers,
+    staleTime: 15_000,
+  })
+}
+export function useBatchSetOwnerMultipliers() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: batchSetMarketplaceUserMultipliers,
+    onSuccess: () =>
+      void client.invalidateQueries({
+        queryKey: ['marketplace-owner-multipliers'],
+      }),
+  })
+}
+export function useMarketplaceMultiplierNotices(enabled = true) {
+  return useQuery({
+    queryKey: ['marketplace-multiplier-notices'],
+    queryFn: getMarketplaceMultiplierNotices,
+    enabled,
+    refetchInterval: 30_000,
+  })
+}
+export function useReadMarketplaceMultiplierNotice() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: readMarketplaceMultiplierNotice,
+    onSuccess: () =>
+      void client.invalidateQueries({
+        queryKey: ['marketplace-multiplier-notices'],
+      }),
+  })
+}
 
 export function useMarketplaceRoutePoolBindToken() {
   return useMutation({ mutationFn: bindMarketplaceRoutePoolToken })
@@ -231,7 +271,7 @@ export function useMyMarketplaceUsageLogs(
 ) {
   return useQuery({
     queryKey: ['marketplace-channels', 'mine', 'usage-logs', params],
-    queryFn: () => getMyMarketplaceUsageLogs(params),
+    queryFn: ({ signal }) => getMyMarketplaceUsageLogs(params, signal),
     placeholderData: (previousData) => previousData,
     staleTime: 15_000,
     refetchOnWindowFocus: false,
@@ -351,7 +391,7 @@ export function useAdminOwnerIncomeRelease() {
       filters: Pick<
         AdminMarketplaceChannelFilters,
         'ownerSearch' | 'ownerUserIds' | 'startTimestamp' | 'endTimestamp'
-      > & { maxAmount?: number }
+      > & { maxAmount?: number; operationId: string }
     ) => releaseAdminOwnerIncome(filters),
     onSuccess: async () => {
       await Promise.all([

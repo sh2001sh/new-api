@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com.
 */
 /* ══════════════════════════════════════════════════════════════════
    DAWN — Code Go 日出视觉世界
-   作用域：.dawn 根类。所有颜色在此作用域内自持，独立于明暗主题。
+   作用域：.dawn 根类。所有颜色在此作用域内自持，由明暗主题共同控制。
    ══════════════════════════════════════════════════════════════════ */
 
 .dawn {
@@ -76,20 +76,22 @@ For commercial licensing, please contact support@quantumnous.com.
   box-sizing: border-box;
 }
 
-:where(.dawn) button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  font-size: 13px;
-  color: inherit;
-}
+@layer base {
+  :where(.dawn) button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 13px;
+    color: inherit;
+  }
 
-:where(.dawn) input,
-:where(.dawn) select {
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--dawn-ink);
+  :where(.dawn) input,
+  :where(.dawn) select {
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--dawn-ink);
+  }
 }
 
 .dawn input:focus,
@@ -201,7 +203,7 @@ For commercial licensing, please contact support@quantumnous.com.
 .dawn .dawn-nav .pill {
   display: flex;
   gap: 2px;
-  background: rgba(255, 253, 251, 0.85);
+  background: color-mix(in srgb, var(--dawn-card) 85%, transparent);
   backdrop-filter: blur(10px);
   border: 1px solid var(--dawn-line);
   border-radius: 99px;
@@ -210,6 +212,8 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn .dawn-nav .pill a {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 8px 18px;
   border-radius: 99px;
   font-size: 13.5px;
@@ -225,7 +229,7 @@ For commercial licensing, please contact support@quantumnous.com.
 
 .dawn .dawn-nav .pill a.on {
   background: var(--dawn-ink);
-  color: #fdf9f5;
+  color: var(--dawn-paper);
 }
 
 .dawn .dawn-nav .right {
@@ -362,7 +366,7 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn .iconseg button.on {
-  background: #fff;
+  background: var(--dawn-card);
   color: var(--dawn-copper);
   box-shadow: 0 1px 4px rgba(60, 30, 10, 0.12);
 }
@@ -405,7 +409,7 @@ For commercial licensing, please contact support@quantumnous.com.
 .dawn .fbtn.on {
   background: var(--dawn-ink);
   border-color: var(--dawn-ink);
-  color: #fdf9f5;
+  color: var(--dawn-paper);
 }
 
 .dawn .fsel {
@@ -978,32 +982,16 @@ For commercial licensing, please contact support@quantumnous.com.
   background: #d28a24;
 }
 
-.dawn .rb.ok { background: var(--dawn-ok); }
-.dawn .rb.idle { background: var(--dawn-idle); opacity: 0.5; }
+.dawn .rb.ok {
+  background: var(--dawn-ok);
+}
+.dawn .rb.idle {
+  background: var(--dawn-idle);
+  opacity: 0.5;
+}
 
 /* Keep the Dawn pages readable when the application theme switches to dark.
    The page has its own palette, so it must explicitly mirror the theme state. */
-.dark .dawn {
-  --dawn-paper: #141210;
-  --dawn-card: #25211e;
-  --dawn-cream: #2b2622;
-  --dawn-cream2: #322b26;
-  --dawn-ink: #f3ede3;
-  --dawn-ink2: #cabdae;
-  --dawn-copper: #e08a52;
-  --dawn-copper-deep: #c96f3e;
-  --dawn-flare: #503523;
-  --dawn-line: rgba(220, 190, 160, 0.22);
-  --dawn-ok: #7bc58f;
-  --dawn-ok-bg: #24412d;
-  --dawn-warn: #e0a94f;
-  --dawn-warn-bg: #4a3820;
-  --dawn-bad: #f08b7d;
-  --dawn-bad-bg: #4a2724;
-  --dawn-idle: #8f8175;
-  color-scheme: dark;
-}
-
 .dark .dawn input,
 .dark .dawn select,
 .dark .dawn textarea,
@@ -1017,7 +1005,9 @@ For commercial licensing, please contact support@quantumnous.com.
   border-color: var(--dawn-line);
 }
 
-.dark .dawn input::placeholder { color: var(--dawn-ink2); }
+.dark .dawn input::placeholder {
+  color: var(--dawn-ink2);
+}
 
 .dawn .capline {
   display: flex;
@@ -1029,7 +1019,9 @@ For commercial licensing, please contact support@quantumnous.com.
   color: var(--dawn-ink2);
   font-size: 11px;
 }
-.dawn .capline b { color: var(--dawn-ink); }
+.dawn .capline b {
+  color: var(--dawn-ink);
+}
 
 .dawn .rb.e {
   background: #c44235;
@@ -1509,14 +1501,14 @@ For commercial licensing, please contact support@quantumnous.com.
   padding: 5px 12px;
   border-radius: 99px;
   border: 1px solid var(--dawn-line);
-  background: #fff;
+  background: var(--dawn-card);
   color: var(--dawn-ink2);
 }
 
 .dawn .mchip.on {
   background: var(--dawn-ink);
   border-color: var(--dawn-ink);
-  color: #fdf9f5;
+  color: var(--dawn-paper);
 }
 
 .dawn .wrow {
@@ -1550,7 +1542,7 @@ For commercial licensing, please contact support@quantumnous.com.
 .dawn .prevbox {
   border: 1px solid rgba(184, 86, 46, 0.25);
   border-radius: 12px;
-  background: #fff;
+  background: var(--dawn-card);
   overflow: hidden;
   margin-bottom: 12px;
 }
@@ -1989,7 +1981,7 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn .modeseg button.on {
-  background: #fff;
+  background: var(--dawn-card);
   color: var(--dawn-copper);
   box-shadow: 0 2px 8px rgba(60, 30, 10, 0.12);
 }
@@ -2000,7 +1992,7 @@ For commercial licensing, please contact support@quantumnous.com.
   padding: 9px 12px;
   border: 1px solid var(--dawn-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--dawn-card);
   outline: none;
   transition: border-color 0.15s;
 }
@@ -2086,7 +2078,7 @@ For commercial licensing, please contact support@quantumnous.com.
   width: 28px;
   height: 28px;
   border-radius: 10px;
-  background: #fff;
+  background: var(--dawn-card);
   border: 1px solid rgba(184, 86, 46, 0.25);
   display: grid;
   place-items: center;
@@ -2188,7 +2180,7 @@ For commercial licensing, please contact support@quantumnous.com.
   padding: 7px 10px;
   border: 1px solid rgba(184, 86, 46, 0.3);
   border-radius: 8px;
-  background: #fff;
+  background: var(--dawn-card);
   width: 100%;
 }
 
@@ -2244,6 +2236,7 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn .s-hero {
+  --dawn-flare: #ffe0be;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -2358,7 +2351,7 @@ For commercial licensing, please contact support@quantumnous.com.
 .dawn .s-hero .btn {
   background: rgba(255, 251, 246, 0.95);
   border-color: transparent;
-  color: var(--dawn-ink);
+  color: #2b1c12;
 }
 
 .dawn .s-hero .btn:hover {
@@ -2762,7 +2755,7 @@ For commercial licensing, please contact support@quantumnous.com.
 .dawn .gtag {
   font-size: 10px;
   border: 1px solid var(--dawn-line);
-  background: #fff;
+  background: var(--dawn-card);
   border-radius: 99px;
   padding: 2px 9px;
   color: var(--dawn-ink2);
@@ -3166,11 +3159,11 @@ For commercial licensing, please contact support@quantumnous.com.
 
 .dawn .mrow {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) 90px 90px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) 90px 90px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
   padding: 11px 24px;
-  border-bottom: 1px solid #f2e7da;
+  border-bottom: 1px solid var(--dawn-line);
   font-size: 12.5px;
 }
 
@@ -3301,22 +3294,96 @@ For commercial licensing, please contact support@quantumnous.com.
 
 @media (max-width: 860px) {
   /* The floating nav is fixed; keep enough top clearance on phones. */
-  .dawn .dawn-wrap { width: 100%; padding: 96px 12px 56px; }
-  .dawn .mhead { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .dawn .mhead h1 { font-size: clamp(26px, 8vw, 38px); }
-  .dawn .gcard { padding: 14px; }
-  .dawn .gcard .top { gap: 8px; align-items: flex-start; }
-  .dawn .gcard h3 { max-width: 52vw; overflow-wrap: anywhere; }
-  .dawn .gact { gap: 6px; overflow-x: auto; padding-bottom: 3px; scrollbar-width: thin; }
-  .dawn .gact .btn { flex: 0 0 auto; min-height: 40px; }
-  .dawn .mline { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; }
-  .dawn .mtag { flex: 0 0 auto; }
-  .dawn .mlist { overflow-x: auto; }
-  .dawn .mlist .mh, .dawn .mlist .mr { min-width: 560px; }
-  .dawn .poolpanel { width: 100%; max-width: 100%; overflow: hidden; }
-  .dawn .filters { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
-  .dawn .filters input { min-width: 220px; }
-  .dawn .page-jump { min-height: 40px; }
+  .dawn .dawn-wrap {
+    width: 100%;
+    padding: 128px 12px 56px;
+  }
+  .dawn .mhead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .dawn .mhead h1 {
+    font-size: clamp(26px, 8vw, 38px);
+  }
+  .dawn .gcard {
+    padding: 14px;
+  }
+  .dawn .gcard .top {
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .dawn .gcard h3 {
+    max-width: 52vw;
+    overflow-wrap: anywhere;
+  }
+  .dawn .gact {
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: thin;
+  }
+  .dawn .gact .btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+  .dawn .mline {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 3px;
+  }
+  .dawn .mtag {
+    flex: 0 0 auto;
+  }
+  .dawn .mlist {
+    overflow-x: auto;
+  }
+  .dawn .mlist .mh,
+  .dawn .mlist .mr {
+    min-width: 560px;
+  }
+  .dawn .poolpanel {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .dawn .filters {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+  .dawn .filters input {
+    min-width: 220px;
+  }
+
+  .dawn .status-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .dawn .status-filters .seg,
+  .dawn .status-filters input {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .dawn .status-filters .seg {
+    display: flex;
+  }
+
+  .dawn .status-filters .seg button {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .dawn .status-filters .fsel {
+    min-width: 0;
+    width: 100%;
+  }
+  .dawn .page-jump {
+    min-height: 40px;
+  }
   .dawn .statband {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -3329,16 +3396,39 @@ For commercial licensing, please contact support@quantumnous.com.
     grid-template-columns: 1fr;
   }
 
+  .dawn .dawn-nav {
+    top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .dawn .dawn-nav.hidden-down {
+    transform: translateY(-128px);
+  }
+
   .dawn .dawn-nav .logo {
-    left: 16px;
+    position: static;
+    transform: none;
   }
 
   .dawn .dawn-nav .logo .logo-text {
-    display: none;
+    display: inline;
   }
 
   .dawn .dawn-nav .right {
-    right: 16px;
+    position: static;
+    transform: none;
+    grid-column: 2;
+    grid-row: 1;
+    gap: 6px;
+  }
+
+  .dawn .dawn-nav .right .btn {
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .dawn .dawn-nav .pill a {
@@ -3346,21 +3436,25 @@ For commercial licensing, please contact support@quantumnous.com.
   }
 
   .dawn .dawn-nav .pill {
-    /* Leave room for the fixed logo and account action on narrow screens. */
-    width: min(560px, calc(100vw - 132px));
-    max-width: calc(100vw - 132px);
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    max-width: 100%;
+    justify-content: space-between;
     overflow-x: auto;
     scrollbar-width: none;
   }
 
-  .dawn .dawn-nav .pill::-webkit-scrollbar { display: none; }
+  .dawn .dawn-nav .pill::-webkit-scrollbar {
+    display: none;
+  }
 
   .dawn .mrow {
     grid-template-columns: minmax(0, 1fr) 80px 80px;
   }
 
-  .dawn .mrow .mini-recent {
-    display: none;
+  .dawn .mrow .tested-at {
+    grid-column: 1 / -1;
   }
 
   .dawn .metrics {
@@ -3407,15 +3501,40 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 @media (max-width: 768px) {
-  .dawn-overview { width: 100%; max-width: 100vw; padding: 16px 12px; overflow-x: hidden; }
+  .dawn-overview {
+    width: 100%;
+    max-width: 100vw;
+    padding: 16px 12px;
+    overflow-x: hidden;
+  }
   .dawn-overview .apicard,
   .dawn-overview .hero,
-  .dawn-overview .panel { max-width: 100%; overflow: hidden; }
-  .dawn-overview .ap { flex-wrap: wrap; gap: 8px; }
-  .dawn-overview .ap code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dawn-overview .amt { font-size: clamp(42px, 13vw, 72px); }
-  .dawn-overview .pgw { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .dawn-overview .pgw .actions { width: 100%; overflow-x: auto; }
+  .dawn-overview .panel {
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .dawn-overview .ap {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dawn-overview .ap code {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dawn-overview .amt {
+    font-size: clamp(42px, 13vw, 72px);
+  }
+  .dawn-overview .pgw {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .dawn-overview .pgw .actions {
+    width: 100%;
+    overflow-x: auto;
+  }
 }
 
 .dawn-overview .pgw {
@@ -3491,6 +3610,8 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn-overview .ap code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--dawn-mono);
   font-size: 13px;
   padding: 6px 12px;
@@ -3501,6 +3622,7 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn-overview .prtag {
+  overflow-wrap: anywhere;
   font-size: 11px;
   font-weight: 600;
   padding: 4px 10px;
@@ -3519,7 +3641,11 @@ For commercial licensing, please contact support@quantumnous.com.
 
 .dawn-overview .hero {
   position: relative;
-  background: linear-gradient(135deg, #f4e8dd 0%, #f9f1e9 100%);
+  background: linear-gradient(
+    135deg,
+    var(--dawn-cream) 0%,
+    var(--dawn-card) 100%
+  );
   border: 1px solid var(--dawn-line);
   border-radius: 16px;
   padding: 28px 32px;
@@ -3554,6 +3680,8 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn-overview .amt {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
   font-size: 48px;
   font-weight: 800;
   color: var(--dawn-copper);
@@ -3620,12 +3748,13 @@ For commercial licensing, please contact support@quantumnous.com.
 
 .dawn-overview .cols {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-top: 18px;
 }
 
 .dawn-overview .panel {
+  min-width: 0;
   background: var(--dawn-card);
   border: 1px solid var(--dawn-line);
   border-radius: 12px;
@@ -3653,14 +3782,15 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn-overview .ubars {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  display: flex;
   gap: 6px;
   height: 140px;
   padding-bottom: 8px;
 }
 
 .dawn-overview .u1 {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -3673,28 +3803,6 @@ For commercial licensing, please contact support@quantumnous.com.
   transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   box-shadow: 0 -2px 8px rgba(184, 86, 46, 0.15);
-}
-
-.dawn-overview .bar2::before {
-  content: attr(data-v);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  color: var(--dawn-ink);
-  background: var(--dawn-paper);
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s;
-  margin-bottom: 4px;
-}
-
-.dawn-overview .bar2:hover::before {
-  opacity: 1;
 }
 
 .dawn-overview .donutwrap {
@@ -3713,7 +3821,7 @@ For commercial licensing, please contact support@quantumnous.com.
   background: conic-gradient(
     var(--dawn-ink) 0deg var(--swp),
     #c98767 var(--swp) calc(var(--swp) + var(--swp2)),
-    #e9e2d8 calc(var(--swp) + var(--swp2)) 360deg
+    var(--dawn-ok) calc(var(--swp) + var(--swp2)) 360deg
   );
   position: relative;
   transition:
@@ -3773,6 +3881,8 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 .dawn-overview .mu .n {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--dawn-ink);
   font-weight: 500;
@@ -3846,11 +3956,35 @@ For commercial licensing, please contact support@quantumnous.com.
   }
 
   .dawn-overview .mu {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .dawn-overview .tbar {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .dawn-overview .hero,
+  .dawn-overview .panel {
+    padding: 20px;
+  }
+
+  .dawn-overview .amt {
+    font-size: 36px;
+  }
+
+  .dawn-overview .donutwrap {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .dawn-overview .dleg {
+    width: 100%;
+  }
+
+  .dawn-overview .ubars {
+    gap: 3px;
   }
 }
 
@@ -3869,7 +4003,7 @@ For commercial licensing, please contact support@quantumnous.com.
   display: flex;
   align-items: center;
   padding: 0 20px;
-  background: #ffffff;
+  background: var(--dawn-card);
   border-bottom: 1px solid var(--dawn-line);
 }
 
@@ -3934,7 +4068,7 @@ For commercial licensing, please contact support@quantumnous.com.
 
 .dawn-console-topnav .pill .nav-link.active {
   background: var(--dawn-ink);
-  color: #fdf9f5;
+  color: var(--dawn-paper);
 }
 
 .dawn-console-topnav .right-actions {
@@ -3992,7 +4126,7 @@ For commercial licensing, please contact support@quantumnous.com.
   top: calc(100% + 8px);
   right: 0;
   min-width: 180px;
-  background: #ffffff;
+  background: var(--dawn-card);
   border: 1px solid var(--dawn-line);
   border-radius: 12px;
   padding: 6px;
@@ -4058,7 +4192,7 @@ For commercial licensing, please contact support@quantumnous.com.
 /* Sidebar */
 .dawn-console-sidebar {
   width: 220px;
-  background: #ffffff;
+  background: var(--dawn-card);
   border-right: 1px solid var(--dawn-line);
   padding: 16px 12px;
   overflow-y: auto;
@@ -4183,6 +4317,47 @@ For commercial licensing, please contact support@quantumnous.com.
 }
 
 @media (max-width: 768px) {
+  .dawn-console-topnav {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .dawn-console-topnav .logo span {
+    display: none;
+  }
+
+  .dawn-console-topnav .right-actions {
+    margin-left: 0;
+    gap: 4px;
+  }
+
+  .dawn-console-topnav .console-search {
+    width: 32px;
+    flex: none;
+    padding: 0;
+  }
+
+  .dawn-console-topnav .console-search > span,
+  .dawn-console-topnav .console-search > kbd {
+    display: none;
+  }
+
+  .dawn-console-topnav .console-search > svg {
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .dawn-console-topnav .user-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .dawn-console-topnav .user-btn span {
+    display: none;
+  }
+
   .dawn-console-sidebar {
     position: fixed;
     left: -230px;

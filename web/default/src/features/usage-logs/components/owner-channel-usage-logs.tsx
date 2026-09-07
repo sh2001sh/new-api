@@ -51,7 +51,9 @@ export function OwnerChannelUsageLogs(props: {
   const [search, setSearch] = React.useState('')
   const [selectedLog, setSelectedLog] =
     React.useState<MarketplaceOwnerUsageLog | null>(null)
-  const [range, setRange] = React.useState<DateRange>({})
+  const [range, setRange] = React.useState<DateRange>(() => ({
+    start: dayjs().startOf('day').toDate(),
+  }))
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -111,6 +113,11 @@ export function OwnerChannelUsageLogs(props: {
 
   return (
     <>
+      {query.isError && (
+        <p role='alert' className='text-destructive p-3 text-sm'>
+          {t('渠道日志加载失败，请点击刷新重试。')}
+        </p>
+      )}
       <DataTablePage
         table={table}
         columns={columns}
@@ -224,7 +231,13 @@ function OwnerLogToolbar(props: {
           </form>
           <Select value={props.channelId} onValueChange={props.onChannelChange}>
             <SelectTrigger className='w-full sm:w-56'>
-              <SelectValue />
+              <SelectValue>
+                {props.channelId === 'all'
+                  ? t('全部渠道')
+                  : props.channels.find(
+                      (channel) => channel.id === props.channelId
+                    )?.system_display_name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>
@@ -239,7 +252,13 @@ function OwnerLogToolbar(props: {
           </Select>
           <Select value={props.status} onValueChange={props.onStatusChange}>
             <SelectTrigger className='w-full sm:w-32'>
-              <SelectValue />
+              <SelectValue>
+                {props.status === 'all'
+                  ? t('全部状态')
+                  : props.status === 'success'
+                    ? t('调用成功')
+                    : t('调用失败')}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>

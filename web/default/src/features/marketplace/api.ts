@@ -84,15 +84,29 @@ export async function setMarketplaceUserMultiplier(input: {
 }
 
 export async function getOwnerMultipliers() {
-  const response = await api.get<ApiResponse<{items: MarketplaceOwnerMultiplierItem[]; total: number}>>('/api/marketplace/channels/mine/user-multipliers')
+  const response = await api.get<
+    ApiResponse<{ items: MarketplaceOwnerMultiplierItem[]; total: number }>
+  >('/api/marketplace/channels/mine/user-multipliers')
   return requireData(response.data)
 }
-export async function batchSetMarketplaceUserMultipliers(input: { targets: Array<{channel_id: string; user_id: number}>; multiplier: number | null }) {
-  const response = await api.post<ApiResponse<{changed_count: number}>>('/api/marketplace/channels/mine/user-multipliers/batch', { targets: input.targets, action: input.multiplier == null ? 'clear' : 'set', multiplier: input.multiplier })
+export async function batchSetMarketplaceUserMultipliers(input: {
+  targets: Array<{ channel_id: string; user_id: number }>
+  multiplier: number | null
+}) {
+  const response = await api.post<ApiResponse<{ changed_count: number }>>(
+    '/api/marketplace/channels/mine/user-multipliers/batch',
+    {
+      targets: input.targets,
+      action: input.multiplier == null ? 'clear' : 'set',
+      multiplier: input.multiplier,
+    }
+  )
   return requireData(response.data)
 }
 export async function getMarketplaceMultiplierNotices() {
-  const response = await api.get<ApiResponse<MarketplaceMultiplierNotice[]>>('/api/marketplace/multiplier-notices')
+  const response = await api.get<ApiResponse<MarketplaceMultiplierNotice[]>>(
+    '/api/marketplace/multiplier-notices'
+  )
   return requireData(response.data)
 }
 export async function readMarketplaceMultiplierNotice(id: number) {
@@ -201,8 +215,7 @@ export async function getMarketplaceGroups(filters: GroupFilters) {
       ]
         .join(' ')
         .toLowerCase()
-      if (search && !searchable.includes(search))
-        return false
+      if (search && !searchable.includes(search)) return false
       if (filters.source && item.source_label !== filters.source) return false
       if (
         filters.provider &&
@@ -337,14 +350,19 @@ export async function getMarketplaceRoutePools() {
   return requireData(response.data)
 }
 
-export async function createMarketplaceRoutePool(input: string | {
-  name: string
-  groupIds?: string[]
-  config?: Partial<MarketplaceAutoRoutePoolConfig>
-}) {
-  const payload = typeof input === 'string'
-    ? { name: input }
-    : { name: input.name, group_ids: input.groupIds, config: input.config }
+export async function createMarketplaceRoutePool(
+  input:
+    | string
+    | {
+        name: string
+        groupIds?: string[]
+        config?: Partial<MarketplaceAutoRoutePoolConfig>
+      }
+) {
+  const payload =
+    typeof input === 'string'
+      ? { name: input }
+      : { name: input.name, group_ids: input.groupIds, config: input.config }
   const response = await api.post<ApiResponse<MarketplaceRoutePool>>(
     '/api/marketplace/route-pools',
     payload
@@ -380,12 +398,18 @@ export async function deleteMarketplaceRoutePool(id: string) {
     throw new Error(response.data.message || '删除路由池失败')
 }
 
-export async function bindMarketplaceRoutePoolToken(input: { poolId: string; tokenId: number }) {
-  const response = await api.post<ApiResponse<{ token_id: number; pool_id: string }>>(
+export async function bindMarketplaceRoutePoolToken(input: {
+  poolId: string
+  tokenId: number
+}) {
+  const response = await api.post<
+    ApiResponse<{ token_id: number; pool_id: string }>
+  >(
     `/api/marketplace/route-pools/${encodeURIComponent(input.poolId)}/bind-token`,
     { token_id: input.tokenId }
   )
-  if (!response.data.success) throw new Error(response.data.message || '绑定失败')
+  if (!response.data.success)
+    throw new Error(response.data.message || '绑定失败')
   return requireData(response.data)
 }
 
@@ -423,13 +447,15 @@ export async function getMarketplaceObservability(input?: {
 }
 
 export async function getMyMarketplaceUsageLogs(
-  params: MarketplaceOwnerUsageLogFilters
+  params: MarketplaceOwnerUsageLogFilters,
+  signal?: AbortSignal
 ) {
   const search = new URLSearchParams({
     page: String(params.page),
     page_size: String(params.pageSize),
   })
   if (params.channelId) search.set('channel_id', params.channelId)
+  if (params.summaryOnly) search.set('summary_only', 'true')
   if (params.status) search.set('status', params.status)
   if (params.modelName) search.set('model_name', params.modelName)
   if (params.requestId) search.set('request_id', params.requestId)
@@ -447,7 +473,13 @@ export async function getMyMarketplaceUsageLogs(
     search.set('end_timestamp', String(params.endTimestamp))
   }
   const response = await api.get<ApiResponse<MarketplaceOwnerUsageLogResult>>(
-    `/api/marketplace/channels/mine/logs?${search.toString()}`
+    `/api/marketplace/channels/mine/logs?${search.toString()}`,
+    // React Query owns cancellation/deduplication; remounts must not reuse an
+    // aborted promise from the global GET cache. Errors appear in the panel.
+    { signal, disableDuplicate: true, skipErrorHandler: true } as Record<
+      string,
+      unknown
+    >
   )
   return requireData(response.data)
 }
@@ -601,10 +633,9 @@ export async function setAdminMarketplaceChannelPaused(
 }
 
 export async function bindMarketplaceToken(groupId: string, tokenId: number) {
-  const response = await api.post<ApiResponse<{ token_id: number; group_id: string }>>(
-    `/api/marketplace/groups/${groupId}/bind-token`,
-    { token_id: tokenId }
-  )
+  const response = await api.post<
+    ApiResponse<{ token_id: number; group_id: string }>
+  >(`/api/marketplace/groups/${groupId}/bind-token`, { token_id: tokenId })
   if (!response.data.success)
     throw new Error(response.data.message || '绑定失败')
   return requireData(response.data)
@@ -687,7 +718,7 @@ export async function releaseAdminOwnerIncome(
   filters: Pick<
     AdminMarketplaceChannelFilters,
     'ownerSearch' | 'ownerUserIds' | 'startTimestamp' | 'endTimestamp'
-  > & { maxAmount?: number }
+  > & { maxAmount?: number; operationId: string }
 ) {
   const search = new URLSearchParams()
   if (filters.ownerSearch) search.set('owner_search', filters.ownerSearch)
@@ -699,6 +730,7 @@ export async function releaseAdminOwnerIncome(
     search.set('end_timestamp', String(filters.endTimestamp))
   if (filters.maxAmount && filters.maxAmount > 0)
     search.set('max_amount', String(filters.maxAmount))
+  search.set('operation_id', filters.operationId)
   const response = await api.post<
     ApiResponse<{ reclaimed_count: number; reclaimed_amount: number }>
   >(`/api/marketplace/admin/owner-income/release?${search.toString()}`)

@@ -17,8 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com.
 */
 import { BadgeCheck, ChevronDown, CircleDashed } from 'lucide-react'
+import { classifyRequestHealth } from '@/lib/request-health'
+import { cn } from '@/lib/utils'
+import { RecentRequestStrip } from '@/features/marketplace/components/recent-request-strip'
 import type { MarketplaceGroup } from '@/features/marketplace/types'
-import { compactCount, pct, sec, successRatePercent } from '../lib/format'
+import { compactCount, pct, sec } from '../lib/format'
 
 /** 市场分组卡：指标网格 + 模型行 + 近期请求 + 操作。 */
 export function MarketGroupCard(props: {
@@ -39,11 +42,17 @@ export function MarketGroupCard(props: {
   modelPrices?: Record<string, string>
   modelFees?: Record<
     string,
-    { mode: 'free' | 'percall' | 'token'; input: string; output: string; cache: string }
+    {
+      mode: 'free' | 'percall' | 'token'
+      input: string
+      output: string
+      cache: string
+    }
   >
 }) {
   const { group } = props
   const hasTraffic = group.request_count > 0
+  const health = classifyRequestHealth(group.success_rate, group.request_count)
   const lifecycleOn = group.lifecycle_status === 'active'
   const verification = group.models.length
     ? group.model_verification_results
@@ -51,7 +60,7 @@ export function MarketGroupCard(props: {
 
   return (
     <div
-      className={`gcard${props.selected ? ' sel' : ''}${props.inPool ? ' in' : ''}`}
+      className={cn('gcard', props.selected && 'sel', props.inPool && 'in')}
       onClick={props.onToggleSelect}
       role='button'
       tabIndex={0}
@@ -63,7 +72,7 @@ export function MarketGroupCard(props: {
       <div className='top'>
         {group.rank > 0 && (
           <span
-            className={`rank-badge${group.rank <= 3 ? ' top' : ''}`}
+            className={cn('rank-badge', group.rank <= 3 && 'top')}
             title={`质量排行榜第 ${group.rank} 名`}
           >
             {String(group.rank).padStart(2, '0')}
@@ -74,7 +83,9 @@ export function MarketGroupCard(props: {
           <h3>{group.system_display_name}</h3>
         </div>
         <div className='state'>
-          <span className={`pub ${!hasTraffic ? 'idle' : lifecycleOn ? 'on' : 'off'}`}>
+          <span
+            className={`pub ${!hasTraffic ? 'idle' : lifecycleOn ? 'on' : 'off'}`}
+          >
             {group.observing ? (
               <CircleDashed size={12} />
             ) : (
@@ -83,12 +94,12 @@ export function MarketGroupCard(props: {
             {!hasTraffic
               ? '无请求'
               : group.observing
-              ? '观测中'
-              : lifecycleOn
-                ? '在售'
-                : group.lifecycle_status === 'suspended'
-                  ? '已暂停'
-                  : '未上架'}
+                ? '观测中'
+                : lifecycleOn
+                  ? '在售'
+                  : group.lifecycle_status === 'suspended'
+                    ? '已暂停'
+                    : '未上架'}
           </span>
           {!hasTraffic && <span className='sub2'>窗口内无请求</span>}
           {hasTraffic && (
@@ -108,16 +119,21 @@ export function MarketGroupCard(props: {
           <span>倍率</span>
         </div>
         <div
-          className={`m${hasTraffic && group.success_rate >= 0.9 ? ' good' : ''}${hasTraffic && group.success_rate >= 0.75 && group.success_rate < 0.9 ? ' warn' : ''}${hasTraffic && group.success_rate < 0.75 ? ' bad' : ''}`}
+          className={cn(
+            'm',
+            health === 'healthy' && 'good',
+            health === 'unstable' && 'warn',
+            health === 'failed' && 'bad'
+          )}
         >
           <b>
-            {hasTraffic ? pct(group.success_rate) : '—'}
+            {hasTraffic ? group.success_rate.toFixed(1) : '—'}
             <span className='u'>%</span>
           </b>
           <span>24H 成功</span>
         </div>
         <div
-          className={`m${hasTraffic && group.avg_ttft_ms > 600 ? ' warn' : ''}`}
+          className={cn('m', hasTraffic && group.avg_ttft_ms > 600 && 'warn')}
         >
           <b>
             {hasTraffic ? sec(group.avg_ttft_ms) : '—'}
@@ -147,7 +163,9 @@ export function MarketGroupCard(props: {
           <span>模型数</span>
         </div>
         <div className='m'>
-          <b>{group.current_concurrency}/{group.max_concurrency || '∞'}</b>
+          <b>
+            {group.current_concurrency}/{group.max_concurrency || '∞'}
+          </b>
           <span>并发</span>
         </div>
         <div className='m'>
@@ -158,7 +176,15 @@ export function MarketGroupCard(props: {
 
       <div className='capline'>
         <span>远程压缩</span>
-        <b>{group.remote_compaction_support === 'v1_v2' ? 'v1 + v2' : group.remote_compaction_support === 'v1' ? '仅 v1' : group.remote_compaction_support === 'v2' ? '仅 v2' : '不支持'}</b>
+        <b>
+          {group.remote_compaction_support === 'v1_v2'
+            ? 'v1 + v2'
+            : group.remote_compaction_support === 'v1'
+              ? '仅 v1'
+              : group.remote_compaction_support === 'v2'
+                ? '仅 v2'
+                : '不支持'}
+        </b>
       </div>
 
       <div className='mline'>
@@ -166,7 +192,7 @@ export function MarketGroupCard(props: {
           const price = props.modelPrices?.[model]
           return (
             <span
-              className={`mtag${price === '免费' ? ' free' : ''}`}
+              className={cn('mtag', price === '免费' && 'free')}
               key={model}
             >
               {model}
@@ -203,80 +229,53 @@ export function MarketGroupCard(props: {
             <span style={{ textAlign: 'right' }}>延迟</span>
           </div>
           {group.models.map((model) => {
-            const result =
-              verification.find((item) => item.model === model) ?? {
-                model,
-                status: '',
-                latency_ms: 0,
-                listed: true,
-                tested_at: '',
-              }
+            const result = verification.find(
+              (item) => item.model === model
+            ) ?? {
+              model,
+              status: '',
+              latency_ms: 0,
+              listed: true,
+              tested_at: '',
+            }
             return (() => {
-            const failed = result.status === 'failed'
-            const fee = props.modelFees?.[result.model]
-            const free = fee?.mode === 'free'
-            return (
-              <div className='mr' key={result.model}>
-                <span className='mn'>
-                  {result.model}
-                  {free ? <i className='ftag'>免费</i> : null}
-                  {failed ? (
-                    <i className='ftag' style={{ background: 'var(--dawn-bad-bg)', color: 'var(--dawn-bad)' }}>
-                      检测失败
-                    </i>
-                  ) : null}
-                </span>
-                <span className='mp'>{fee?.input ?? '—'}</span>
-                <span className='mp'>{fee?.output ?? '—'}</span>
-                <span className='mp'>{result.latency_ms > 0 ? `${result.latency_ms}ms` : '—'}</span>
-              </div>
-            )
+              const failed = result.status === 'failed'
+              const fee = props.modelFees?.[result.model]
+              const free = fee?.mode === 'free'
+              return (
+                <div className='mr' key={result.model}>
+                  <span className='mn'>
+                    {result.model}
+                    {free ? <i className='ftag'>免费</i> : null}
+                    {failed ? (
+                      <i
+                        className='ftag'
+                        style={{
+                          background: 'var(--dawn-bad-bg)',
+                          color: 'var(--dawn-bad)',
+                        }}
+                      >
+                        检测失败
+                      </i>
+                    ) : null}
+                  </span>
+                  <span className='mp'>{fee?.input ?? '—'}</span>
+                  <span className='mp'>{fee?.output ?? '—'}</span>
+                  <span className='mp'>
+                    {result.latency_ms > 0 ? `${result.latency_ms}ms` : '—'}
+                  </span>
+                </div>
+              )
             })()
           })}
         </div>
       )}
 
-      <div className='recent'>
-        <span className='rl'>近期</span>
-        {(group.recent_request_series ?? []).map((point) => {
-          const rate = successRatePercent(point.success_rate)
-          const cls =
-            point.request_count === 0 || rate == null
-              ? 'idle'
-              : rate >= 99
-                ? 'ok'
-                : rate >= 95
-                  ? 'w'
-                  : 'e'
-          return (
-            <i
-              className={`rb ${cls}`}
-              key={point.ts}
-              title={`${new Date(point.ts).toLocaleTimeString()} · 成功率 ${rate == null ? '无数据' : `${rate.toFixed(1)}%`} · 请求 ${point.request_count}`}
-              aria-label={`成功率 ${rate == null ? '无数据' : `${rate.toFixed(1)}%`}，请求 ${point.request_count}`}
-            />
-          )
-        })}
-        {!group.recent_request_series?.length && (
-          <i className='rb idle' />
-        )}
-        <span className='rn'>
-          {
-            (group.recent_request_series ?? []).filter((p) => {
-              const rate = successRatePercent(p.success_rate)
-              return rate != null && rate < 95 && p.request_count > 0
-            }).length
-          }{' '}
-          异常
-        </span>
-      </div>
+      <RecentRequestStrip group={group} />
 
       <div className='gact' onClick={(event) => event.stopPropagation()}>
         {lifecycleOn && props.authed && (
-          <button
-            className='btn mini'
-            onClick={() => props.onBindKey(group)}
-          >
+          <button className='btn mini' onClick={() => props.onBindKey(group)}>
             绑定 Key
           </button>
         )}

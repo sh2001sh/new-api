@@ -30,7 +30,9 @@ import {
   Waypoints,
   X,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { getMarketplaceRoutePools } from '@/features/marketplace/api'
 import {
   useMarketplaceAutoRoutePool,
@@ -340,7 +342,11 @@ export function PoolWorkbench(props: {
             </div>
             <div
               className='pp-note'
-              style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                whiteSpace: 'nowrap',
+              }}
             >
               <Info size={12} />
               登录后可创建与编辑路由池
@@ -350,7 +356,10 @@ export function PoolWorkbench(props: {
           <CreatePanel
             onCancel={() => onModeChange('pool')}
             onCreate={async (name, strategy) => {
-              const pool = await createPool.mutateAsync({ name, config: { strategy } })
+              const pool = await createPool.mutateAsync({
+                name,
+                config: { strategy },
+              })
               onActivePoolChange(pool.id)
               onModeChange('pool')
               toast.success('路由池已创建')
@@ -363,14 +372,21 @@ export function PoolWorkbench(props: {
             onGenerate={async (name, groupIds, strategy) => {
               let generatedName = name.trim() || '自动池'
               if (generatedName === '自动池') {
-                const existingNames = new Set((pools.data ?? []).map((pool) => pool.name))
+                const existingNames = new Set(
+                  (pools.data ?? []).map((pool) => pool.name)
+                )
                 if (existingNames.has(generatedName)) {
                   let suffix = 2
-                  while (existingNames.has(`${generatedName} ${suffix}`)) suffix += 1
+                  while (existingNames.has(`${generatedName} ${suffix}`))
+                    suffix += 1
                   generatedName = `${generatedName} ${suffix}`
                 }
               }
-              const pool = await createPool.mutateAsync({ name: generatedName, groupIds, config: { strategy } })
+              const pool = await createPool.mutateAsync({
+                name: generatedName,
+                groupIds,
+                config: { strategy },
+              })
               onActivePoolChange(pool.id)
               onModeChange('pool')
               toast.success(`已生成路由池 · ${groupIds.length} 分组`)
@@ -512,7 +528,7 @@ export function PoolWorkbench(props: {
                   <div className='pool-item' key={member.id}>
                     <div className='r1'>
                       <GripVertical size={13} color='var(--dawn-ink2)' />
-                      <i className={`dot${member.observing ? 'w' : ''}`} />
+                      <i className={cn('dot', member.observing && 'w')} />
                       <span className='cname'>{member.name}</span>
                       <span className='csrc'>{member.source}</span>
                       <span className='ord'>
@@ -599,9 +615,9 @@ export function PoolWorkbench(props: {
                 </button>
               </div>
             )}
-            <div className='pp-note'>
-              <Info size={12} />
-              排序即调度顺序；指标取窗口均值。
+            <div className='text-muted-foreground mt-3 flex items-start gap-1.5 text-xs leading-5'>
+              <Info size={12} className='mt-1 shrink-0' />
+              <span>排序即调度顺序；指标取窗口均值。</span>
             </div>
           </>
         )}
@@ -617,6 +633,8 @@ function CreatePanel(props: {
     strategy: 'priority' | 'score' | 'cost'
   ) => Promise<void>
 }) {
+  const { t } = useTranslation()
+  const [submitError, setSubmitError] = useState('')
   const [name, setName] = useState('')
   const [strategy, setStrategy] = useState<'priority' | 'score' | 'cost'>(
     'priority'
@@ -647,6 +665,11 @@ function CreatePanel(props: {
           ))}
         </select>
       </div>
+      {submitError && (
+        <p role='alert' className='text-destructive text-sm'>
+          {submitError}
+        </p>
+      )}
       <div className='pp-foot'>
         <button className='btn mini' onClick={props.onCancel}>
           取消
@@ -656,8 +679,15 @@ function CreatePanel(props: {
           disabled={busy}
           onClick={async () => {
             setBusy(true)
+            setSubmitError('')
             try {
               await props.onCreate(name.trim() || '未命名池', strategy)
+            } catch (error) {
+              setSubmitError(
+                error instanceof Error
+                  ? error.message
+                  : t('路由池创建失败，请重试')
+              )
             } finally {
               setBusy(false)
             }
@@ -708,7 +738,8 @@ function AutoBuildPanel(props: {
       (group) =>
         group.source_type === 'marketplace_user' &&
         group.request_count > 0 &&
-        (group.lifecycle_status === 'active' || group.lifecycle_status === 'degraded') &&
+        (group.lifecycle_status === 'active' ||
+          group.lifecycle_status === 'degraded') &&
         group.verification_status === 'passed' &&
         group.models.length > 0 &&
         (!model || group.models.includes(model))
@@ -745,7 +776,8 @@ function AutoBuildPanel(props: {
       props.groups.filter(
         (group) =>
           group.source_type === 'marketplace_user' &&
-          (group.lifecycle_status === 'active' || group.lifecycle_status === 'degraded') &&
+          (group.lifecycle_status === 'active' ||
+            group.lifecycle_status === 'degraded') &&
           group.verification_status === 'passed' &&
           group.models.length > 0 &&
           (group.observing || group.request_count === 0)
@@ -894,7 +926,9 @@ function AutoBuildPanel(props: {
                 weights.multiplier >= 30 ? 'cost' : 'priority'
               )
             } catch (error) {
-              toast.error(error instanceof Error ? error.message : '生成路由池失败')
+              toast.error(
+                error instanceof Error ? error.message : '生成路由池失败'
+              )
             } finally {
               setBusy(false)
             }

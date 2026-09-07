@@ -16,30 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
-import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { Crown, Fuel } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { SubscriptionLuckySummary } from '@/features/daily-lucky-number/components/subscription-lucky-summary'
 import { useDailyLuckyNumberSelf } from '@/features/daily-lucky-number/hooks/use-daily-lucky-number'
 import {
   getSubscriptionDisabledReasonText,
   formatSubscriptionQuotaAmount,
+  isMonthlyCardPlan,
 } from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
   SubscriptionPurchaseType,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import {
+  getSubscriptionUsageStatus,
+  formatWalletDateTime,
+} from '@/features/wallet/components/wallet-panel-utils'
 import { translatePlanTitle } from './lib/display'
 import { PackagePlanCard } from './package-plan-card'
-import {
-  StaggerContainer,
-  StaggerItem,
-} from '@/components/page-transition'
 
 type FuelConfig = { minimumQuota: number; quotaStep: number }
 
@@ -53,7 +54,7 @@ export function PlanZone(props: {
     record: PlanRecord,
     purchaseType?: SubscriptionPurchaseType
   ) => void
-  currentSubscription?: UserSubscriptionRecord
+  subscriptions: UserSubscriptionRecord[]
   onFuel?: (
     subscription: UserSubscriptionRecord,
     title: string,
@@ -72,13 +73,13 @@ export function PlanZone(props: {
         <span className='codego-stat-label sr-only'>{props.description}</span>
       </div>
       {props.loading ? (
-        <div className='grid gap-4 sm:grid-cols-2'>
+        <div className='grid gap-4 sm:grid-cols-2 2xl:grid-cols-3'>
           {Array.from({ length: 2 }).map((_, index) => (
             <Skeleton key={index} className='h-[420px]' />
           ))}
         </div>
       ) : props.plans.length > 0 ? (
-        <StaggerContainer className='grid gap-4 sm:grid-cols-2'>
+        <StaggerContainer className='grid gap-4 sm:grid-cols-2 2xl:grid-cols-3'>
           {props.plans.map((record) => (
             <StaggerItem key={record.plan.id}>
               <PackagePlanCard
@@ -87,7 +88,9 @@ export function PlanZone(props: {
                 onPurchase={(purchaseType) =>
                   props.onPurchase(record, purchaseType)
                 }
-                currentSubscription={props.currentSubscription}
+                currentSubscription={props.subscriptions.find(
+                  (item) => item.subscription.plan_id === record.plan.id
+                )}
                 onFuel={props.onFuel}
               />
             </StaggerItem>
@@ -103,6 +106,7 @@ export function PlanZone(props: {
 }
 
 export function CurrentPackagePanel(props: {
+  onRenew: (plan: PlanRecord) => void
   subscriptions: UserSubscriptionRecord[]
   plans: PlanRecord[]
   loading: boolean
@@ -113,23 +117,69 @@ export function CurrentPackagePanel(props: {
   ) => void
 }) {
   const { t } = useTranslation()
-  const dailyLuckyQuery = useDailyLuckyNumberSelf(Boolean(props.subscriptions[0]))
-  const planMap = useMemo(() => {
-    const map = new Map<number, PlanRecord>()
-    for (const item of props.plans) map.set(item.plan.id, item)
-    return map
-  }, [props.plans])
-  const current = props.subscriptions[0]
-  const currentPlanRecord = current
-    ? planMap.get(current.subscription.plan_id)
-    : undefined
+  const dailyLuckyQuery = useDailyLuckyNumberSelf(
+    props.subscriptions.some((record) =>
+      Boolean(record.subscription.lucky_number)
+    )
+  )
+  if (props.loading) return <Skeleton className='h-24 w-full' />
+  if (props.subscriptions.length === 0) return null
+
+  return (
+    <section aria-label={t('我的订阅')} className='grid gap-3 xl:grid-cols-2'>
+      {props.subscriptions.map((record) => (
+        <CurrentPackageCard
+          key={record.subscription.id}
+          record={record}
+          plan={props.plans.find(
+            (item) => item.plan.id === record.subscription.plan_id
+          )}
+          onFuel={props.onFuel}
+          onRenew={props.onRenew}
+          luckySummary={
+            record.subscription.lucky_number ? (
+              <SubscriptionLuckySummary
+                record={record}
+                plan={props.plans.find(
+                  (item) => item.plan.id === record.subscription.plan_id
+                )}
+                draw={dailyLuckyQuery.data?.today_draw}
+                rewards={dailyLuckyQuery.data?.recent_rewards ?? []}
+                showLink
+              />
+            ) : null
+          }
+        />
+      ))}
+    </section>
+  )
+}
+
+function CurrentPackageCard(props: {
+  record: UserSubscriptionRecord
+  plan?: PlanRecord
+  onFuel: (
+    record: UserSubscriptionRecord,
+    title: string,
+    config: FuelConfig
+  ) => void
+  luckySummary: ReactNode
+  onRenew: (plan: PlanRecord) => void
+}) {
+  const { t } = useTranslation()
+  const current = props.record
+  const currentPlanRecord = props.plan
   const currentPlan = currentPlanRecord?.plan
+  const usage = getSubscriptionUsageStatus(current, currentPlan, t)
+  const hasTotalLimit = current.subscription.amount_total > 0
+  const hasPeriodLimit =
+    !isMonthlyCardPlan(currentPlan) &&
+    (current.subscription.period_amount ?? 0) > 0
   const currentTitle =
     translatePlanTitle(currentPlan?.title, t) ||
-    (current ? t('Plan #{{id}}', { id: current.subscription.plan_id }) : '')
+    t('Plan #{{id}}', { id: current.subscription.plan_id })
   const canFuel =
-    Boolean(current) &&
-    current?.subscription.status === 'active' &&
+    current.subscription.status === 'active' &&
     currentPlan?.fuel_enabled === true &&
     (currentPlan?.fuel_min_quota || 0) > 0 &&
     (currentPlan?.fuel_quota_step || 0) > 0
@@ -137,90 +187,117 @@ export function CurrentPackagePanel(props: {
   const renewalBlockedReason = getSubscriptionDisabledReasonText(
     currentPlanRecord?.disabled_reason
   )
-  if (!props.loading && !current) {
-    return null
-  }
 
   return (
-    <section className='border-border bg-card flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border px-4 py-3'>
-      {props.loading ? (
-        <Skeleton className='h-8 w-full sm:w-96' />
-      ) : current ? (
-        <>
-          <div className='flex min-w-0 items-center gap-2.5'>
-            <Crown className='text-primary size-4 shrink-0' />
-            <span className='text-foreground truncate text-sm font-semibold'>
-              {currentTitle}
-            </span>
-          </div>
-          <div className='text-muted-foreground text-sm tabular-nums'>
-            {t('Remaining')} {formatSubscriptionQuotaAmount(
+    <article
+      aria-label={currentTitle}
+      className='border-border bg-card flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border px-4 py-3'
+    >
+      <div className='flex min-w-0 items-center gap-2.5'>
+        <Crown className='text-primary size-4 shrink-0' />
+        <span className='text-foreground truncate text-sm font-semibold'>
+          {currentTitle}
+        </span>
+      </div>
+      <span className='text-muted-foreground text-xs'>{usage.label}</span>
+      <div className='text-muted-foreground basis-full text-sm tabular-nums'>
+        {t('Remaining')}{' '}
+        {hasTotalLimit
+          ? formatSubscriptionQuotaAmount(
               Math.max(
                 0,
                 current.subscription.amount_total -
                   current.subscription.amount_used
               )
-            )}
-            /
-            {formatSubscriptionQuotaAmount(current.subscription.amount_total)}
-          </div>
-          <Progress
-            className='order-last w-full sm:order-none sm:min-w-32 sm:flex-1'
-            value={
-              current.subscription.amount_total > 0
-                ? Math.round(
-                    (current.subscription.amount_used /
-                      current.subscription.amount_total) *
-                      100
+            )
+          : t('不限')}
+        {hasTotalLimit && (
+          <>
+            {' '}
+            / {formatSubscriptionQuotaAmount(current.subscription.amount_total)}
+          </>
+        )}
+      </div>
+      {hasTotalLimit && (
+        <Progress
+          aria-label={t('已用额度比例')}
+          className='w-full'
+          value={
+            current.subscription.amount_total > 0
+              ? Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round(
+                      (current.subscription.amount_used /
+                        current.subscription.amount_total) *
+                        100
+                    )
                   )
-                : 0
+                )
+              : 0
+          }
+        />
+      )}
+      {hasPeriodLimit && (
+        <p className='text-muted-foreground basis-full text-xs'>
+          {t('周期剩余额度')}{' '}
+          {formatSubscriptionQuotaAmount(
+            Math.max(
+              0,
+              (current.subscription.period_amount ?? 0) -
+                (current.subscription.period_used ?? 0)
+            )
+          )}
+          {' / '}
+          {formatSubscriptionQuotaAmount(current.subscription.period_amount)}
+        </p>
+      )}
+      <p className='text-muted-foreground basis-full text-xs'>
+        {t('到期时间')} {formatWalletDateTime(current.subscription.end_time)}
+      </p>
+      {props.luckySummary && (
+        <div className='min-w-0 basis-full border-t pt-3'>
+          {props.luckySummary}
+        </div>
+      )}
+      <div className='ml-auto flex gap-2'>
+        {canFuel ? (
+          <Button
+            size='sm'
+            onClick={() =>
+              props.onFuel(current, currentTitle, {
+                minimumQuota: currentPlan?.fuel_min_quota || 0,
+                quotaStep: currentPlan?.fuel_quota_step || 0,
+              })
             }
-          />
-          {current.subscription.lucky_number ? (
-            <div className='order-last basis-full border-t pt-3'>
-              <SubscriptionLuckySummary
-                record={current}
-                plan={currentPlanRecord}
-                draw={dailyLuckyQuery.data?.today_draw}
-                rewards={dailyLuckyQuery.data?.recent_rewards ?? []}
-                showLink
-              />
-            </div>
-          ) : null}
-          <div className='ml-auto flex gap-2'>
-            {canFuel ? (
-              <Button
-                size='sm'
-                onClick={() =>
-                  props.onFuel(current, currentTitle, {
-                    minimumQuota: currentPlan?.fuel_min_quota || 0,
-                    quotaStep: currentPlan?.fuel_quota_step || 0,
-                  })
-                }
-              >
-                <Fuel className='mr-1 size-4' />
-                {t('Add quota')}
-              </Button>
-            ) : null}
-            {renewalBlocked ? (
-              <div className='flex flex-col items-end gap-1'>
-                <Button size='sm' variant='outline' disabled>
-                  {t('Renewal unavailable')}
-                </Button>
-                <span className='sr-only'>{renewalBlockedReason}</span>
-              </div>
-            ) : (
-              <Button
-                size='sm'
-                variant='outline'
-                render={<Link to='/packages' />}
-              >
-                {t('Renew')}
-              </Button>
-            )}
+          >
+            <Fuel className='mr-1 size-4' />
+            {t('Add quota')}
+          </Button>
+        ) : null}
+        {renewalBlocked ? (
+          <div className='flex flex-col items-end gap-1'>
+            <Button size='sm' variant='outline' disabled>
+              {t('Renewal unavailable')}
+            </Button>
+            <span className='text-muted-foreground text-xs'>
+              {renewalBlockedReason}
+            </span>
           </div>
-        </>
-      ) : null}
-    </section>
+        ) : (
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={!currentPlanRecord}
+            onClick={() =>
+              currentPlanRecord && props.onRenew(currentPlanRecord)
+            }
+          >
+            {t('Renew')}
+          </Button>
+        )}
+      </div>
+    </article>
   )
 }

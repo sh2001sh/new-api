@@ -86,15 +86,14 @@ export function windowLabel(
 
 export type HealthState = 'ok' | 'warn' | 'bad' | 'idle'
 
-/** 由分组窗口指标推导状态：无请求 → idle；成功率 ≥90 稳定，75–90 波动，<75 异常。 */
+/** 由分组窗口指标推导状态：无请求 → idle；成功率 >90 稳定，75–90 波动，<75 异常。 */
 export function healthState(input: {
   requestCount: number
   successRate: number | null
 }): HealthState {
   if (!input.requestCount || input.successRate == null) return 'idle'
-  const rate =
-    input.successRate <= 1 ? input.successRate * 100 : input.successRate
-  if (rate >= 90) return 'ok'
+  const rate = input.successRate
+  if (rate > 90) return 'ok'
   if (rate >= 75) return 'warn'
   return 'bad'
 }

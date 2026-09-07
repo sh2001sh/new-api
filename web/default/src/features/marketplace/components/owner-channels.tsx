@@ -11,6 +11,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMyMarketplaceChannels } from '../hooks'
 import { formatMultiplier } from '../lib/format'
@@ -29,12 +31,26 @@ import { MarketplaceStatusBadge } from './status-badge'
 export function OwnerChannels(props: { onAdd: () => void }) {
   const { t } = useTranslation()
   const query = useMyMarketplaceChannels()
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
   const [editing, setEditing] = useState<MarketplaceChannel | null>(null)
   const [deleting, setDeleting] = useState<MarketplaceChannel | null>(null)
   const [expandedChannelIDs, setExpandedChannelIDs] = useState<Set<string>>(
     new Set()
   )
   const channels = query.data ?? []
+  const keyword = search.trim().toLowerCase()
+  const visible = channels.filter(
+    (channel) =>
+      (!status || channel.lifecycle_status === status) &&
+      (!keyword ||
+        [
+          channel.id,
+          channel.system_display_name,
+          channel.submitted_source_label,
+          ...channel.declared_models,
+        ].some((value) => value.toLowerCase().includes(keyword)))
+  )
   const toggleChannel = (channelID: string) => {
     setExpandedChannelIDs((current) => {
       const next = new Set(current)
@@ -63,13 +79,36 @@ export function OwnerChannels(props: { onAdd: () => void }) {
             {t('添加渠道')}
           </Button>
         </header>
-        <div className='border-y border-amber-200/70 bg-amber-50/60 px-4 py-3 text-xs leading-5 text-amber-950 sm:px-5'>
+        <div className='border-border bg-muted/30 text-muted-foreground border-y px-4 py-3 text-xs leading-5 sm:px-5'>
           <strong>{t('渠道关停与冻结额度规则')}</strong>：
           {t(
             '暂停渠道不会没收收益；只有删除或下架渠道时，仍处于冻结期的待结算额度才会按平台规则回收。'
           )}
         </div>
         <OwnerIncomeOverview channels={channels} />
+        <div className='flex flex-wrap gap-2 border-b p-4'>
+          <Input
+            className='w-full sm:w-80'
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t('搜索渠道名称、ID、来源或模型')}
+            aria-label={t('搜索我的渠道')}
+          />
+          <NativeSelect
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            aria-label={t('渠道状态')}
+          >
+            <option value=''>{t('全部状态')}</option>
+            <option value='draft'>{t('草稿')}</option>
+            <option value='verifying'>{t('检测中')}</option>
+            <option value='pending_review'>{t('待审核')}</option>
+            <option value='active'>{t('在售')}</option>
+            <option value='degraded'>{t('质量下降')}</option>
+            <option value='suspended'>{t('已暂停')}</option>
+            <option value='disabled'>{t('已下架')}</option>
+          </NativeSelect>
+        </div>
         <div>
           {query.isLoading ? (
             <div className='space-y-2 p-3'>
@@ -101,9 +140,13 @@ export function OwnerChannels(props: { onAdd: () => void }) {
                 {t('添加渠道')}
               </Button>
             </div>
+          ) : visible.length === 0 ? (
+            <p className='text-muted-foreground p-6 text-center'>
+              {t('当前筛选条件下没有渠道')}
+            </p>
           ) : (
             <div className='divide-border divide-y'>
-              {channels.map((channel) => (
+              {visible.map((channel) => (
                 <article
                   key={channel.id}
                   className='hover:bg-muted/20 px-4 py-4 transition-colors sm:px-5'

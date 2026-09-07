@@ -35,7 +35,10 @@ export function useOwnerChannelLogColumns(
               )}
             </div>
             {row.original.request_id && (
-              <div className='text-muted-foreground mt-1 max-w-56 truncate font-mono text-[10px]'>
+              <div
+                title={row.original.request_id}
+                className='text-muted-foreground mt-1 max-w-56 truncate font-mono text-[10px]'
+              >
                 {row.original.request_id}
               </div>
             )}
@@ -59,9 +62,11 @@ export function useOwnerChannelLogColumns(
         header: t('Tokens'),
         cell: ({ row }) => (
           <div className='text-xs tabular-nums'>
-            <div>{row.original.prompt_tokens.toLocaleString()} 输入</div>
+            <div>
+              {row.original.prompt_tokens.toLocaleString()} {t('输入')}
+            </div>
             <div className='text-muted-foreground mt-0.5'>
-              {row.original.completion_tokens.toLocaleString()} 输出
+              {row.original.completion_tokens.toLocaleString()} {t('输出')}
             </div>
           </div>
         ),
@@ -102,9 +107,31 @@ export function useOwnerChannelLogColumns(
       },
       {
         id: 'status',
-        header: t('状态'),
-        cell: ({ row }) => renderIncomeStatus(row.original, t),
-        meta: { label: t('状态'), mobileBadge: true },
+        header: t('调用 / 结算'),
+        cell: ({ row }) => (
+          <div className='space-y-1'>
+            {row.original.status !== 'failed' && (
+              <div className='text-success text-xs'>{t('调用成功')}</div>
+            )}
+            {renderIncomeStatus(row.original, t)}
+            {row.original.reclaimed_income > 0 && (
+              <p className='text-muted-foreground text-xs'>
+                {t('已回收')}: {formatQuota(row.original.reclaimed_income)}
+              </p>
+            )}
+            {row.original.status === 'failed' && (
+              <p
+                className='text-destructive max-w-52 truncate text-xs'
+                title={row.original.error_message}
+              >
+                {row.original.status_code > 0 &&
+                  `HTTP ${row.original.status_code} · `}
+                {row.original.error_message || t('查看详情了解失败原因')}
+              </p>
+            )}
+          </div>
+        ),
+        meta: { label: t('调用 / 结算'), mobileBadge: true },
       },
       {
         id: 'details',
@@ -152,6 +179,9 @@ function renderIncomeStatus(
     return <Badge variant='destructive'>{t('调用失败')}</Badge>
   }
   if (item.income_status === 'released') {
+    if (item.reclaimed_income > 0) {
+      return <Badge variant='secondary'>{t('部分回收')}</Badge>
+    }
     return <Badge className='bg-success/10 text-success'>{t('已到账')}</Badge>
   }
   if (item.income_status === 'reclaimed') {

@@ -21,6 +21,8 @@ import { Link, useLocation } from '@tanstack/react-router'
 import { LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { normalizeSystemName } from '@/lib/branding'
+import { cn } from '@/lib/utils'
+import { ThemeSwitch } from '@/components/theme-switch'
 
 const NAV_ITEMS = [
   { title: '主页', href: '/' },
@@ -48,11 +50,17 @@ export function DawnNav({ variant = 'light' }: { variant?: 'light' | 'hero' }) {
   }, [])
 
   const isActive = (href: string) =>
-    href === '/' ? location.pathname === '/' : location.pathname.startsWith(href)
+    href === '/'
+      ? location.pathname === '/'
+      : location.pathname.startsWith(href)
 
   return (
-    <nav className={`dawn-nav${hidden ? ' hidden-down' : ''}`}>
-      <Link className='logo' to='/' style={variant === 'hero' ? { color: '#FFF7EE' } : undefined}>
+    <nav className={cn('dawn-nav', hidden && 'hidden-down')}>
+      <Link
+        className='logo'
+        to='/'
+        style={variant === 'hero' ? { color: '#FFF7EE' } : undefined}
+      >
         <svg className='dot' viewBox='0 0 256 256' width={22} height={22}>
           <defs>
             <linearGradient
@@ -80,7 +88,13 @@ export function DawnNav({ variant = 'light' }: { variant?: 'light' | 'hero' }) {
             </linearGradient>
           </defs>
           <rect width='256' height='256' rx='64' fill='#FFF8EF' />
-          <circle cx='128' cy='128' r='88' fill='url(#gearGlow-nav)' opacity='0.14' />
+          <circle
+            cx='128'
+            cy='128'
+            r='88'
+            fill='url(#gearGlow-nav)'
+            opacity='0.14'
+          />
           <path
             d='M133.905 31.16C129.971 25.6133 121.756 25.6133 117.822 31.16L107.218 46.112C103.142 51.8576 95.9024 54.4697 89.0308 52.744L71.1508 48.254C64.5172 46.5886 57.6638 51.121 56.7736 57.9012L54.375 76.1574C53.4546 83.1678 48.602 89.0164 41.8716 91.21L24.3425 96.9247C17.8294 99.0472 15.2906 106.86 18.9379 112.644L28.7523 128.21C32.5219 134.19 32.5219 141.81 28.7523 147.79L18.9379 163.356C15.2906 169.14 17.8294 176.953 24.3425 179.075L41.8716 184.79C48.602 186.984 53.4546 192.832 54.375 199.843L56.7736 218.099C57.6638 224.879 64.5172 229.411 71.1508 227.746L89.0308 223.256C95.9024 221.53 103.142 224.142 107.218 229.888L117.822 244.84C121.756 250.387 129.971 250.387 133.905 244.84L144.509 229.888C148.585 224.142 155.825 221.53 162.696 223.256L180.576 227.746C187.21 229.411 194.063 224.879 194.954 218.099L197.352 199.843C198.272 192.832 203.125 186.984 209.855 184.79L227.384 179.075C233.897 176.953 236.436 169.14 232.789 163.356L222.975 147.79C219.205 141.81 219.205 134.19 222.975 128.21L232.789 112.644C236.436 106.86 233.897 99.0472 227.384 96.9247L209.855 91.21C203.125 89.0164 198.272 83.1678 197.352 76.1574L194.954 57.9012C194.063 51.121 187.21 46.5886 180.576 48.254L162.696 52.744C155.825 54.4697 148.585 51.8576 144.509 46.112L133.905 31.16Z'
             fill='url(#gearGlow-nav)'
@@ -109,6 +123,7 @@ export function DawnNav({ variant = 'light' }: { variant?: 'light' | 'hero' }) {
         ))}
       </div>
       <div className='right'>
+        <ThemeSwitch />
         {user ? (
           <Link className='btn mini primary' to='/dashboard'>
             <LayoutDashboard size={14} />

@@ -25,17 +25,15 @@ import {
   Store,
   Waypoints,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { SiteSeo } from '@/components/seo'
+import { RecentRequestStrip } from '@/features/marketplace/components/recent-request-strip'
 import { useMarketplaceGroups } from '@/features/marketplace/hooks'
 import type { MarketplaceGroup } from '@/features/marketplace/types'
 import { DawnNav } from '../components/dawn-nav'
 import { DawnQueryError } from '../components/query-error'
-import {
-  healthState,
-  pct,
-  successRatePercent,
-  type HealthState,
-} from '../lib/format'
+import { healthState, pct, type HealthState } from '../lib/format'
 
 const STATUS_FILTERS = {
   search: '',
@@ -55,6 +53,7 @@ type SourceFilter = 'all' | 'official' | 'marketplace_user'
 type StateFilter = '' | HealthState
 
 export function DawnStatus() {
+  const { t } = useTranslation()
   const query = useMarketplaceGroups(STATUS_FILTERS)
   const groups = useMemo(() => query.data?.items ?? [], [query.data])
 
@@ -71,6 +70,7 @@ export function DawnStatus() {
     if (group.latest_request_status === 'healthy') return 'ok'
     if (group.latest_request_status === 'unstable') return 'warn'
     if (group.latest_request_status === 'failed') return 'bad'
+    if (group.latest_request_status === 'unknown') return 'idle'
     return healthState({
       requestCount: group.request_count,
       successRate: group.success_rate,
@@ -141,7 +141,7 @@ export function DawnStatus() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span className='live'>
               <i />
-              LIVE · 12H
+              LIVE · 6H
             </span>
             <button
               className='btn mini'
@@ -163,7 +163,7 @@ export function DawnStatus() {
 
         <div className='statband'>
           <div className='cell'>
-            <span className='win'>12H WINDOW</span>
+            <span className='win'>6H WINDOW</span>
             <b>{groups.length}</b>
             <span>分组</span>
           </div>
@@ -193,7 +193,7 @@ export function DawnStatus() {
           </div>
         </div>
 
-        <div className='filters'>
+        <div className='filters status-filters'>
           <div className='seg'>
             <button
               className={source === 'all' ? 'on' : ''}
@@ -215,12 +215,14 @@ export function DawnStatus() {
             </button>
           </div>
           <input
+            aria-label={t('搜索分组、来源或模型')}
             placeholder='搜索分组 / 来源 / 模型'
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
           <select
             className='fsel'
+            aria-label={t('模型筛选')}
             value={model}
             onChange={(event) => setModel(event.target.value)}
           >
@@ -233,6 +235,7 @@ export function DawnStatus() {
           </select>
           <select
             className='fsel'
+            aria-label={t('状态筛选')}
             value={state}
             onChange={(event) => setState(event.target.value as StateFilter)}
           >
@@ -261,17 +264,20 @@ export function DawnStatus() {
         ) : visible.length ? (
           visible.map(({ group, st }) => (
             <div
-              className={`sgcard${openSet.has(group.id) ? ' open' : ''}`}
+              className={cn('sgcard', openSet.has(group.id) && 'open')}
               key={group.id}
             >
               <div
                 className='head'
                 onClick={() => toggle(group.id)}
                 role='button'
+                aria-expanded={openSet.has(group.id)}
                 tabIndex={0}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ')
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
                     toggle(group.id)
+                  }
                 }}
               >
                 <span className='sg-title'>
@@ -281,14 +287,16 @@ export function DawnStatus() {
                   {st === 'idle' && <span className='tag'>窗口内无调用</span>}
                 </span>
                 <span className='mini-recent'>
-                  <RecentStrip group={group} />
+                  <RecentRequestStrip group={group} compact />
                 </span>
                 <span className='sg-meta'>
-                  <span className={`rate ${st}`}>
-                    成功率{' '}
+                  <span
+                    className={`rate ${healthState({ requestCount: group.request_count, successRate: group.success_rate })}`}
+                  >
+                    24H 成功率{' '}
                     <b>
                       {hasTraffic(group)
-                        ? `${pct(group.success_rate)}%`
+                        ? `${group.success_rate.toFixed(1)}%`
                         : '—'}
                     </b>
                   </span>
@@ -307,6 +315,11 @@ export function DawnStatus() {
                 </span>
               </div>
               <div className='gbody'>
+                <p className='text-muted-foreground px-6 py-3 text-xs'>
+                  {t(
+                    '上方状态条为分组请求历史；以下为各模型最近一次检测结果。'
+                  )}
+                </p>
                 {group.model_verification_results.length ? (
                   group.model_verification_results.map((result) => {
                     const rowState = result.status === 'passed' ? 'ok' : 'bad'
@@ -330,13 +343,13 @@ export function DawnStatus() {
                         >
                           延迟 <b>{result.latency_ms}ms</b>
                         </span>
-                        <span className='mini-recent'>
-                          <RecentStrip group={group} />
-                        </span>
-                        <span
-                          className={`stt ${rowState === 'ok' ? 'ok' : 'bad'}`}
-                        >
-                          {result.status === 'passed' ? '稳定' : '异常'}
+                        <span className='num tested-at'>
+                          {t('检测时间')}{' '}
+                          <time dateTime={result.tested_at}>
+                            {result.tested_at
+                              ? new Date(result.tested_at).toLocaleString()
+                              : '—'}
+                          </time>
                         </span>
                       </div>
                     )
@@ -357,10 +370,9 @@ export function DawnStatus() {
                       <span className='num'>
                         延迟 <b>—</b>
                       </span>
-                      <span className='mini-recent'>
-                        <RecentStrip group={group} />
+                      <span className='num tested-at'>
+                        {t('暂无模型检测记录')}
                       </span>
-                      <span className='stt idle'>待观测</span>
                     </div>
                   ))
                 ) : (
@@ -392,61 +404,6 @@ export function DawnStatus() {
       </main>
     </div>
   )
-}
-
-/** 由 recent_request_series 渲染近期状态条；hover 显示时段成功率与成功/失败次数。 */
-function RecentStrip({ group }: { group: MarketplaceGroup }) {
-  const series = group.recent_request_series ?? []
-  if (!series.length) {
-    return <i style={{ background: '#e4dcd2', width: '100%' }} />
-  }
-  return (
-    <>
-      {series.map((point) => {
-        const rate = successRatePercent(point.success_rate)
-        const cls =
-          point.request_count === 0 || rate == null
-            ? ''
-            : rate > 90
-              ? ''
-              : rate >= 75
-                ? 'w'
-                : 'e'
-        const success =
-          rate == null
-            ? null
-            : Math.round((point.request_count * rate) / 100)
-        const failed =
-          success == null ? null : point.request_count - success
-        return (
-          <span className='seg' key={point.ts} tabIndex={-1}>
-            <i className={cls} />
-            <span className='tip' role='tooltip'>
-              {point.request_count === 0 || rate == null ? (
-                <>
-                  {formatSegTime(point.ts)} · 无请求
-                </>
-              ) : (
-                <>
-                  {formatSegTime(point.ts)}
-                  <br />
-                  成功率 <b>{rate.toFixed(1)}%</b>
-                  <br />
-                  成功 {success} · <span className='t-fail'>失败 {failed}</span>
-                </>
-              )}
-            </span>
-          </span>
-        )
-      })}
-    </>
-  )
-}
-
-function formatSegTime(ts: number): string {
-  const ms = ts < 1e12 ? ts * 1000 : ts
-  const date = new Date(ms)
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 function hasTraffic(group: MarketplaceGroup): boolean {

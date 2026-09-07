@@ -30,8 +30,11 @@ interface DateRange {
 export function OwnerIncomeOverview(props: { channels: MarketplaceChannel[] }) {
   const { t } = useTranslation()
   const [channelId, setChannelId] = useState('all')
-  const [range, setRange] = useState<DateRange>({})
+  const [range, setRange] = useState<DateRange>(() => ({
+    start: dayjs().startOf('day').toDate(),
+  }))
   const query = useMyMarketplaceUsageLogs({
+    summaryOnly: true,
     channelId: channelId === 'all' ? undefined : channelId,
     startTimestamp: toTimestamp(range.start),
     endTimestamp: toTimestamp(range.end),
@@ -90,7 +93,12 @@ export function OwnerIncomeOverview(props: { channels: MarketplaceChannel[] }) {
             onValueChange={(value) => value && setChannelId(value)}
           >
             <SelectTrigger className='w-full sm:w-52'>
-              <SelectValue />
+              <SelectValue>
+                {channelId === 'all'
+                  ? t('全部渠道')
+                  : props.channels.find((channel) => channel.id === channelId)
+                      ?.system_display_name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectGroup>
@@ -137,7 +145,7 @@ export function OwnerIncomeOverview(props: { channels: MarketplaceChannel[] }) {
           {t('所选范围的收入统计加载失败，请重试。')}
         </div>
       )}
-      <div className='bg-card grid sm:grid-cols-2 xl:grid-cols-5'>
+      <div className='bg-card grid sm:grid-cols-2 xl:grid-cols-3'>
         {metrics.map(({ icon: Icon, label, value }) => (
           <div
             key={label}
@@ -149,7 +157,7 @@ export function OwnerIncomeOverview(props: { channels: MarketplaceChannel[] }) {
             <div className='min-w-0'>
               <div className='text-muted-foreground text-xs'>{label}</div>
               <div className='mt-1 truncate text-lg font-semibold tabular-nums'>
-                {value}
+                {query.isFetching ? t('加载中…') : query.isError ? '—' : value}
               </div>
             </div>
           </div>

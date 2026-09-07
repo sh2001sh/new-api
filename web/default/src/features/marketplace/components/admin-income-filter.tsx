@@ -55,7 +55,7 @@ export function AdminIncomeFilter(props: {
             value={formatQuota(report?.reclaimed_income ?? 0)}
           />
         </div>
-        <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+        <div className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'>
           <div className='relative w-full sm:w-48'>
             <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
             <Input
@@ -95,11 +95,23 @@ export function AdminIncomeFilter(props: {
           >
             <RefreshCcw className={props.isFetching ? 'animate-spin' : ''} />
           </Button>
-          <Input type='number' min='1' placeholder={t('部分回收额度')} value={props.reclaimAmount} onChange={(event) => props.onReclaimAmountChange(event.currentTarget.value)} className='w-32' aria-label={t('部分回收额度')} />
+          <Input
+            type='number'
+            min='0'
+            step='any'
+            placeholder={t('部分回收金额（留空全部）')}
+            value={props.reclaimAmount}
+            onChange={(event) =>
+              props.onReclaimAmountChange(event.currentTarget.value)
+            }
+            className='w-52'
+            aria-label={t('部分回收金额')}
+          />
           <Button
             onClick={props.onRelease}
             disabled={
               props.releasing ||
+              props.isError ||
               props.isFetching ||
               props.selectedOwnerIDs.length === 0 ||
               (report?.released_income ?? 0) <= 0
@@ -115,6 +127,11 @@ export function AdminIncomeFilter(props: {
         <div className='bg-destructive/5 text-destructive border-border border-t px-4 py-2 text-xs'>
           {t('渠道主收益加载失败，请重试。')}
         </div>
+      )}
+      {!props.isError && !props.isFetching && report?.items.length === 0 && (
+        <p className='text-muted-foreground px-4 py-6 text-sm'>
+          {t('当前筛选条件下暂无渠道主收益记录')}
+        </p>
       )}
       {!props.isError && (report?.items.length ?? 0) > 0 && (
         <div className='border-border max-h-52 overflow-y-auto border-t'>

@@ -150,7 +150,7 @@ function getPropDescription(
       return `盲盒 0.1 倍率卡已生效；剩余约 ${formatSeconds(prop.expires_at - Math.floor(Date.now() / 1000))}，全部现有官方分组通用。`
     }
     if (prop.prop_type === 'monthly_pass_multiplier') {
-      return `套餐 0.1 倍率卡已生效；剩余约 ${formatSeconds(prop.expires_at - Math.floor(Date.now() / 1000))}，无需切换分组，仅实际扣月卡额度时生效。`
+      return `套餐 0.1 倍率卡已生效；剩余约 ${formatSeconds(prop.expires_at - Math.floor(Date.now() / 1000))}，仅官方分组实际扣月卡额度时生效，第三方分组不享受此倍率。`
     }
     if (prop.prop_type === 'zero_hour_multiplier') {
       return `历史 0 倍率道具已生效，剩余约 ${formatSeconds(prop.expires_at - Math.floor(Date.now() / 1000))}；可随时暂停并保留剩余时间。`
@@ -170,9 +170,9 @@ function getPropDescription(
     if (prop.prop_type === 'monthly_pass_multiplier') {
       const remaining = prop.remaining_seconds || prop.duration_seconds
       if (prop.status === 'paused') {
-        return `已暂停，剩余 ${formatSeconds(remaining)}。恢复后仅在实际扣月卡额度时额外乘 0.1。`
+        return `已暂停，剩余 ${formatSeconds(remaining)}。恢复后仅在官方分组实际扣月卡额度时额外乘 0.1。`
       }
-      return `启用后可随时暂停，累计可用 ${formatSeconds(remaining)}；无需切换分组，余额扣费不享受该倍率。`
+      return `启用后可随时暂停，累计可用 ${formatSeconds(remaining)}；仅官方分组扣月卡额度时生效，第三方分组与余额扣费不享受该倍率。`
     }
     if (prop.prop_type === 'zero_hour_multiplier') {
       const remaining = prop.remaining_seconds || prop.duration_seconds

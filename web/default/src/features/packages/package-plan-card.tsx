@@ -90,7 +90,8 @@ export function PackagePlanCard(props: {
         // Keep the recommended card the same 1px geometry as its siblings;
         // a 2px border made the first card visibly heavier and shifted its
         // content compared with the other plans.
-        isRecommended && 'border-primary/70 bg-primary/[0.035] ring-primary/20 ring-1'
+        isRecommended &&
+          'border-primary/70 bg-primary/[0.035] ring-primary/20 ring-1'
       )}
     >
       <CardContent className='flex h-full flex-col gap-3 p-4'>
@@ -232,7 +233,7 @@ export function PackagePlanCard(props: {
             {monthlyPassBenefit && (
               <div className='text-muted-foreground text-xs leading-relaxed'>
                 {t(
-                  '无需切换分组；实际扣月卡额度时额外乘 0.1，余额扣费仍按原倍率。'
+                  '仅官方分组实际扣月卡额度时额外乘 0.1；第三方分组和余额扣费不享受倍率卡优惠。'
                 )}
               </div>
             )}

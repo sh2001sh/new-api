@@ -11,10 +11,15 @@ export function classifyRequestHealth(
   successRate: number | null | undefined,
   requestCount: number | null | undefined
 ): RequestHealthStatus {
-  if (!requestCount || requestCount <= 0 || successRate == null) {
+  if (
+    !requestCount ||
+    requestCount <= 0 ||
+    successRate == null ||
+    !Number.isFinite(successRate)
+  ) {
     return 'unknown'
   }
-  if (successRate >= 90) return 'healthy'
+  if (successRate > 90) return 'healthy'
   if (successRate >= 75) return 'unstable'
   return 'failed'
 }

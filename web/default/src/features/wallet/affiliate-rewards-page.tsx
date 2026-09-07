@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Copy, Gift, RotateCcw, Sparkles, Users, Wallet } from 'lucide-react'
 import { motion, useReducedMotion, type Variants } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatNumber, formatTimestampToDate } from '@/lib/format'
 import { MOTION_TRANSITION } from '@/lib/motion'
@@ -126,6 +127,7 @@ function getInviteeName(invitee: AffiliateInviteeRewardStatus) {
 }
 
 export function AffiliateRewardsPage() {
+  const { t } = useTranslation()
   const shouldReduceMotion = Boolean(useReducedMotion())
   const [usingResetOpportunity, setUsingResetOpportunity] = useState(false)
   const {
@@ -267,11 +269,12 @@ export function AffiliateRewardsPage() {
 
                   <div className='mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
                     {loading ? (
-                      <Skeleton className='h-11 rounded-xl' />
+                      <Skeleton className='h-10 rounded-md' />
                     ) : (
                       <Input
                         value={affiliateLink}
                         readOnly
+                        aria-label={t('邀请链接')}
                         className='h-10 font-mono text-xs sm:text-sm'
                       />
                     )}
@@ -282,17 +285,15 @@ export function AffiliateRewardsPage() {
                       className='h-10'
                     >
                       <Copy data-icon='inline-start' />
-                      复制邀请链接
+                      {t('复制邀请链接')}
                     </Button>
-                  </div>
-                  <div className='mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
                     {loading ? (
                       <Skeleton className='h-10 rounded-xl' />
                     ) : (
                       <Input
                         value={affiliateCode}
                         readOnly
-                        aria-label='邀请码'
+                        aria-label={t('邀请码')}
                         className='h-10 font-mono text-sm'
                       />
                     )}
@@ -303,7 +304,7 @@ export function AffiliateRewardsPage() {
                       className='h-10'
                     >
                       <Copy data-icon='inline-start' />
-                      复制邀请码
+                      {t('复制邀请码')}
                     </Button>
                   </div>
                 </div>

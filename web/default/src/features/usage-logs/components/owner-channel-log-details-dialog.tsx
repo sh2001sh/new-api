@@ -1,5 +1,6 @@
 import { AlertTriangle, Clock3, Copy, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { formatQuota } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,6 +63,24 @@ export function OwnerChannelLogDetailsDialog(props: {
                   label={t('重试次数')}
                   value={String(item.retry_count)}
                 />
+              </DetailSection>
+              <DetailSection icon={<Route />} title={t('收益与回收')}>
+                <DetailRow
+                  label={t('原始渠道收益')}
+                  value={formatQuota(item.owner_income)}
+                />
+                <DetailRow
+                  label={t('已回收额度')}
+                  value={formatQuota(item.reclaimed_income || 0)}
+                />
+                {item.income_status === 'released' && (
+                  <DetailRow
+                    label={t('剩余已到账收益')}
+                    value={formatQuota(
+                      item.owner_income - (item.reclaimed_income || 0)
+                    )}
+                  />
+                )}
               </DetailSection>
               <DetailSection icon={<Clock3 />} title={t('耗时')}>
                 <DetailRow
