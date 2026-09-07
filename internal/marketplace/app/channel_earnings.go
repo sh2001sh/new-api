@@ -32,8 +32,8 @@ func earningsByGroupIDsInRange(ids []string, startTimestamp, endTimestamp int64)
 			COUNT(*) AS request_count,
 			COALESCE(SUM(owner_net_amount), 0) AS total_income,
 			COALESCE(SUM(CASE WHEN status = 'pending' THEN owner_net_amount ELSE 0 END), 0) AS pending_income,
-			COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount ELSE 0 END), 0) AS released_income,
-			COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE 0 END), 0) AS reclaimed_income,
+			COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount - reclaimed_amount ELSE 0 END), 0) AS released_income,
+			COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE reclaimed_amount END), 0) AS reclaimed_income,
 			COALESCE(SUM(CASE WHEN status = 'forfeited' THEN owner_net_amount ELSE 0 END), 0) AS forfeited_income`).
 		Where("group_id IN ?", ids)
 	if startTimestamp > 0 {

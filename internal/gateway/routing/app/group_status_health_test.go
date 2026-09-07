@@ -11,7 +11,7 @@ import (
 func TestLatestNonEmptyGroupStatusBucketUsesSharedThresholds(t *testing.T) {
 	t.Parallel()
 
-	failedRate := 84.99
+	failedRate := 74.99
 	healthyRate := 100.0
 	rate, requests := latestNonEmptyGroupStatusBucket([]UserGroupStatusBucket{
 		{SuccessRate: &failedRate, RequestCount: 4},
@@ -28,9 +28,9 @@ func TestLatestNonEmptyGroupStatusBucketUsesSharedThresholds(t *testing.T) {
 func TestClassifyGroupModelRequestHealthMatchesMarketplaceContract(t *testing.T) {
 	t.Parallel()
 
-	healthy := 90.0
-	unstable := 85.0
-	failed := 84.99
+	healthy := 90.01
+	unstable := 75.0
+	failed := 74.99
 	require.Equal(t, gatewaydomain.RequestHealthUnknown, classifyGroupModelRequestHealth(nil, 0))
 	require.Equal(t, gatewaydomain.RequestHealthHealthy, classifyGroupModelRequestHealth(&healthy, 1))
 	require.Equal(t, gatewaydomain.RequestHealthUnstable, classifyGroupModelRequestHealth(&unstable, 1))

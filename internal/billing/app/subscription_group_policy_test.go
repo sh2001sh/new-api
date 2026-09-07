@@ -208,7 +208,14 @@ func TestMonthlyPassValidationErrorSettlesAtFullPrice(t *testing.T) {
 func TestMarketplaceGroupUsesDerivedSubscriptionMultiplier(t *testing.T) {
 	previousHooks := subscriptionFundingHooks
 	var preConsumed int64
+	var settledDelta int64
 	RegisterSubscriptionFundingHooks(SubscriptionFundingHooks{
+		GetMonthlyPassEntitlement:      testMonthlyPassEntitlement,
+		ValidateMonthlyPassEntitlement: testValidMonthlyPassEntitlement,
+		PostConsumeDelta: func(_ int, _ string, delta int64) error {
+			settledDelta = delta
+			return nil
+		},
 		PreConsume: func(_ string, _ int, _ string, amount int64) (*SubscriptionFundingPreConsumeResult, error) {
 			preConsumed = amount
 			return &SubscriptionFundingPreConsumeResult{UserSubscriptionID: 299, PreConsumed: amount, AmountTotal: 10_000, AmountUsedAfter: amount}, nil
@@ -233,6 +240,9 @@ func TestMarketplaceGroupUsesDerivedSubscriptionMultiplier(t *testing.T) {
 	require.Equal(t, BillingSourceSubscription, info.BillingSource)
 	require.InDelta(t, 0.6, info.SubscriptionGroupMultiplier, 1e-9)
 	require.InDelta(t, 10, info.SubscriptionQuotaScale, 1e-9)
+	require.Equal(t, 1.0, info.SubscriptionPackageMultiplier)
+	require.NoError(t, session.Settle(60))
+	require.Zero(t, settledDelta, "third-party group must not receive the active 0.1x card discount")
 }
 
 func TestMonthlyPassMultiplierDoesNotApplyAfterWalletFallback(t *testing.T) {

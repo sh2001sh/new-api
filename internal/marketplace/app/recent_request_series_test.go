@@ -84,7 +84,7 @@ func TestBuildRecentRequestStatusesByGroupUsesSharedThresholds(t *testing.T) {
 
 	statuses := buildRecentRequestStatusesByGroup([]string{"unstable", "failed"}, []gatewaystore.GroupModelRequestBucket{
 		{GroupName: "unstable", BucketIndex: 11, RequestCount: 20, SuccessCount: 17},
-		{GroupName: "failed", BucketIndex: 11, RequestCount: 20, SuccessCount: 16},
+		{GroupName: "failed", BucketIndex: 11, RequestCount: 20, SuccessCount: 14},
 	})
 
 	require.Equal(t, "unstable", statuses["unstable"])
@@ -110,4 +110,12 @@ func filterNonEmptyRecentRequestBuckets(series []RecentRequestBucket) []RecentRe
 		}
 	}
 	return result
+}
+
+func TestMarketplaceRecentWindowIsSixHoursInFifteenMinuteBuckets(t *testing.T) {
+	start, end := marketplaceRecentWindow(1788740123)
+	require.Equal(t, int64(6*3600), end-start)
+	require.Equal(t, int64(900), marketplaceRecentBucketSeconds)
+	require.Equal(t, int64(0), start%900)
+	require.Len(t, newMarketplaceRecentRequestSeries(start), 24)
 }

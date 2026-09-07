@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"time"
 
 	marketplaceschema "github.com/sh2001sh/new-api/internal/marketplace/schema"
@@ -18,8 +19,8 @@ func ListAdminOwnerIncome(input AdminOwnerIncomeQuery) (*AdminOwnerIncomeResult,
 			COUNT(*) AS request_count,
 			COALESCE(SUM(owner_net_amount), 0) AS total_income,
 			COALESCE(SUM(CASE WHEN status = 'pending' THEN owner_net_amount ELSE 0 END), 0) AS pending_income,
-			COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount ELSE 0 END), 0) AS released_income,
-			COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE 0 END), 0) AS reclaimed_income,
+			COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount - reclaimed_amount ELSE 0 END), 0) AS released_income,
+			COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE reclaimed_amount END), 0) AS reclaimed_income,
 			COALESCE(SUM(CASE WHEN status = 'forfeited' THEN owner_net_amount ELSE 0 END), 0) AS forfeited_income`)
 	if normalizedSearch := normalizeExternalIDSearch(input.OwnerSearch); normalizedSearch != "" {
 		ownerUserIDs, err := ownerUserIDsByExternalID(normalizedSearch)
@@ -79,12 +80,20 @@ func ReleaseAdminOwnerIncome(input AdminOwnerIncomeQuery) (*AdminOwnerIncomeRele
 		}
 	}
 	if len(input.OwnerUserIDs) > 0 {
-		ownerIDs = input.OwnerUserIDs
+		if ownerIDs == nil {
+			ownerIDs = input.OwnerUserIDs
+		} else {
+			ownerIDs = slices.DeleteFunc(ownerIDs, func(id int) bool { return !slices.Contains(input.OwnerUserIDs, id) })
+			if len(ownerIDs) == 0 {
+				return &AdminOwnerIncomeReleaseResult{}, nil
+			}
+		}
 	}
 	result, err := marketplacesettlement.ReclaimPending(marketplacesettlement.ReleaseFilter{
 		OwnerUserIDs: ownerIDs, StartTimestamp: input.StartTimestamp,
 		EndTimestamp: input.EndTimestamp,
 		MaxAmount:    input.MaxAmount,
+		OperationID:  input.OperationID,
 	})
 	if err != nil {
 		return nil, err

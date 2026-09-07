@@ -619,3 +619,27 @@ func TestMigrateMultiplierPrecisionBackfillsNominalAndEffectiveValues(t *testing
 	require.Equal(t, 0.8999, legacyUsage.EffectiveMultiplier)
 	require.Equal(t, 0.1001, legacyUsage.DiscountRate)
 }
+
+func TestPartialIncomeReclaimMigrationPreservesExistingSettlements(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	require.NoError(t, err)
+	originalPostgres := platformdb.UsingPostgreSQL
+	platformdb.UsingPostgreSQL = false
+	t.Cleanup(func() { platformdb.UsingPostgreSQL = originalPostgres })
+	// Exercise the additive migration against the old table, not a fresh model.
+	require.NoError(t, db.Exec("CREATE TABLE marketplace_settlements (id text PRIMARY KEY, owner_net_amount integer NOT NULL, status text NOT NULL)").Error)
+	require.NoError(t, db.Exec("INSERT INTO marketplace_settlements (id, owner_net_amount, status) VALUES ('old-reclaimed',95,'reclaimed'),('old-released',100,'released')").Error)
+	require.NoError(t, migrateMarketplacePartialIncomeReclaim(db))
+	require.NoError(t, migrateMarketplacePartialIncomeReclaim(db))
+	require.True(t, db.Migrator().HasTable(&marketplaceschema.IncomeReclaim{}))
+	var rows []marketplaceschema.Settlement
+	require.NoError(t, db.Order("id").Find(&rows).Error)
+	require.Len(t, rows, 2)
+	require.EqualValues(t, 95, rows[0].OwnerNetAmount)
+	require.Equal(t, "reclaimed", rows[0].Status)
+	require.Zero(t, rows[0].ReclaimedAmount)
+	require.EqualValues(t, 100, rows[1].OwnerNetAmount)
+	require.Equal(t, "released", rows[1].Status)
+	require.Zero(t, rows[1].ReclaimedAmount)
+	require.False(t, appliedMigrationNeedsRepair(db, "20260907_marketplace_partial_income_reclaim"))
+}

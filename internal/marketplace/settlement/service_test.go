@@ -1,6 +1,8 @@
 package settlement
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,6 +101,47 @@ func TestReclaimPendingCreditsAdministratorAndMarksRecord(t *testing.T) {
 	require.NotNil(t, item.ReclaimedAt)
 }
 
+func TestReclaimAmountSmallerThanOneSettlement(t *testing.T) {
+	db := openSettlementTestDB(t)
+	require.NoError(t, db.Create(&marketplaceschema.Settlement{
+		RequestID: "partial", GroupID: "group", OwnerUserID: 10,
+		OwnerNetAmount: 95, Status: statusReleased,
+	}).Error)
+	var debited int
+	RegisterReclaimHook(func(_ *gorm.DB, _, _ int, amount int, _ string) error {
+		debited += amount
+		return nil
+	})
+	t.Cleanup(func() { RegisterReclaimHook(nil) })
+	filter := ReleaseFilter{OwnerUserIDs: []int{10}, MaxAmount: 40, OperationID: "partial-action"}
+	result, err := ReclaimPending(filter)
+	require.NoError(t, err)
+	require.EqualValues(t, 40, result.Amount)
+	require.Equal(t, 40, debited)
+	var item marketplaceschema.Settlement
+	require.NoError(t, db.First(&item, "request_id = ?", "partial").Error)
+	require.EqualValues(t, 95, item.OwnerNetAmount)
+	require.EqualValues(t, 40, item.ReclaimedAmount)
+	require.Equal(t, statusReleased, item.Status)
+	repeated, err := ReclaimPending(filter)
+	require.NoError(t, err)
+	require.Equal(t, result, repeated)
+	require.Equal(t, 40, debited)
+	filter.MaxAmount = 1
+	_, err = ReclaimPending(filter)
+	require.ErrorContains(t, err, "操作标识")
+	rest, err := ReclaimPending(ReleaseFilter{OwnerUserIDs: []int{10}, OperationID: "reclaim-rest"})
+	require.NoError(t, err)
+	require.EqualValues(t, 55, rest.Amount)
+	require.Equal(t, 95, debited)
+	require.NoError(t, db.First(&item, "request_id = ?", "partial").Error)
+	require.EqualValues(t, 95, item.ReclaimedAmount)
+	require.Equal(t, statusReclaimed, item.Status)
+	var count int64
+	require.NoError(t, db.Model(&marketplaceschema.Settlement{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
+}
+
 func TestRecordSubscriptionSettlementUsesWalletGrossForOwnerIncome(t *testing.T) {
 	db := openSettlementTestDB(t)
 	require.NoError(t, Record(RecordParams{
@@ -154,6 +197,74 @@ func openSettlementTestDB(t *testing.T) *gorm.DB {
 		&billingschema.BillingSettlement{},
 		&billingschema.BillingOutboxEvent{},
 		&marketplaceschema.Settlement{},
+		&marketplaceschema.IncomeReclaim{},
 	))
 	return db
+}
+
+func TestReclaimAllIncludesMoreThanFiveThousandRecordsAndRespectsFilters(t *testing.T) {
+	db := openSettlementTestDB(t)
+	// Match the timestamp convention used by GORM's CreatedAt writer.
+	reference := db.NowFunc().Truncate(time.Second)
+	items := make([]marketplaceschema.Settlement, 5001)
+	for i := range items {
+		items[i] = marketplaceschema.Settlement{ID: fmt.Sprintf("item-%05d", i), RequestID: fmt.Sprintf("item-%05d", i), GroupID: "g", OwnerUserID: 10, OwnerNetAmount: 1, Status: statusReleased, CreatedAt: reference}
+	}
+	require.NoError(t, db.CreateInBatches(items, 100).Error)
+	require.NoError(t, db.Create([]marketplaceschema.Settlement{
+		{RequestID: "outside-owner", GroupID: "g", OwnerUserID: 11, OwnerNetAmount: 100, Status: statusReleased, CreatedAt: reference},
+		{RequestID: "outside-time", GroupID: "g", OwnerUserID: 10, OwnerNetAmount: 100, Status: statusReleased, CreatedAt: reference.Add(-time.Hour)},
+		{RequestID: "pending", GroupID: "g", OwnerUserID: 10, OwnerNetAmount: 100, Status: statusPending, CreatedAt: reference},
+	}).Error)
+	RegisterReclaimHook(func(_ *gorm.DB, owner, _ int, amount int, _ string) error {
+		require.Equal(t, 10, owner)
+		require.Equal(t, 1, amount)
+		return nil
+	})
+	t.Cleanup(func() { RegisterReclaimHook(nil) })
+	result, err := ReclaimPending(ReleaseFilter{OwnerUserIDs: []int{10}, StartTimestamp: reference.Unix(), EndTimestamp: reference.Unix(), OperationID: "large-batch"})
+	require.NoError(t, err)
+	require.Equal(t, 5001, result.Count)
+	require.EqualValues(t, 5001, result.Amount)
+	var untouched int64
+	require.NoError(t, db.Model(&marketplaceschema.Settlement{}).Where("status <> ?", statusReclaimed).Count(&untouched).Error)
+	require.EqualValues(t, 3, untouched)
+}
+
+func TestReclaimInsufficientEarningsRollsBackAndConcurrentRetryIsIdempotent(t *testing.T) {
+	db := openSettlementTestDB(t)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.Create(&marketplaceschema.Settlement{RequestID: "limited", GroupID: "g", OwnerUserID: 10, OwnerNetAmount: 95, Status: statusReleased}).Error)
+	RegisterReclaimHook(func(_ *gorm.DB, _, _ int, _ int, _ string) error { return nil })
+	t.Cleanup(func() { RegisterReclaimHook(nil) })
+	result, err := ReclaimPending(ReleaseFilter{MaxAmount: 96, OperationID: "over-limit"})
+	require.ErrorContains(t, err, "可回收收益不足")
+	require.Zero(t, result)
+	var item marketplaceschema.Settlement
+	require.NoError(t, db.First(&item).Error)
+	require.Zero(t, item.ReclaimedAmount)
+	var count int64
+	require.NoError(t, db.Model(&marketplaceschema.IncomeReclaim{}).Count(&count).Error)
+	require.Zero(t, count)
+	var wg sync.WaitGroup
+	results := make([]ReclaimResult, 4)
+	errs := make([]error, 4)
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = ReclaimPending(ReleaseFilter{MaxAmount: 40, OperationID: "same-operation"})
+		}(i)
+	}
+	wg.Wait()
+	for i := range results {
+		require.NoError(t, errs[i])
+		require.EqualValues(t, 40, results[i].Amount)
+	}
+	require.NoError(t, db.First(&item).Error)
+	require.EqualValues(t, 40, item.ReclaimedAmount)
+	require.NoError(t, db.Model(&marketplaceschema.IncomeReclaim{}).Count(&count).Error)
+	require.EqualValues(t, 1, count)
 }

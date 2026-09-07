@@ -154,6 +154,7 @@ func V2MigrationIDs() []string {
 		"20260904_marketplace_auto_route_pool_weights",
 		"20260906_marketplace_multiplier_notices",
 		"20260828_marketplace_settlement_terminal_timestamps",
+		"20260907_marketplace_partial_income_reclaim",
 		"20260817_marketplace_transport_capabilities",
 		"20260817_responses_background",
 		"20260818_multiplier_precision",
@@ -375,6 +376,7 @@ func ApplyV2Migrations(ctx context.Context, dryRun bool) error {
 			return tx.AutoMigrate(&marketplaceschema.MultiplierNotice{})
 		}},
 		{ID: "20260828_marketplace_settlement_terminal_timestamps", Run: migrateMarketplaceSettlementTerminalTimestamps},
+		{ID: "20260907_marketplace_partial_income_reclaim", Run: migrateMarketplacePartialIncomeReclaim},
 		{ID: "20260817_marketplace_transport_capabilities", Run: migrateMarketplaceTransportCapabilities},
 		{ID: "20260817_responses_background", Run: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(&gatewayschema.ResponsesBackgroundJob{}, &gatewayschema.ResponsesBackgroundEvent{})
@@ -983,6 +985,9 @@ func appliedMigrationNeedsRepair(db *gorm.DB, migrationID string) bool {
 		return !db.Migrator().HasTable(&marketplaceschema.Settlement{}) ||
 			!db.Migrator().HasColumn(&marketplaceschema.Settlement{}, "ReclaimedAt") ||
 			!db.Migrator().HasColumn(&marketplaceschema.Settlement{}, "ForfeitedAt")
+	case "20260907_marketplace_partial_income_reclaim":
+		return !db.Migrator().HasColumn(&marketplaceschema.Settlement{}, "ReclaimedAmount") ||
+			!db.Migrator().HasTable(&marketplaceschema.IncomeReclaim{})
 	case "20260817_marketplace_transport_capabilities":
 		return db.Migrator().HasTable(&marketplaceschema.Channel{}) &&
 			!db.Migrator().HasColumn(&marketplaceschema.Channel{}, "TransportCapabilities")
@@ -1035,6 +1040,20 @@ func migrateMarketplaceSettlementTerminalTimestamps(tx *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+func migrateMarketplacePartialIncomeReclaim(tx *gorm.DB) error {
+	if !tx.Migrator().HasTable(&marketplaceschema.Settlement{}) {
+		if err := tx.AutoMigrate(&marketplaceschema.Settlement{}); err != nil {
+			return err
+		}
+	} else if !tx.Migrator().HasColumn(&marketplaceschema.Settlement{}, "ReclaimedAmount") {
+		if err := tx.Migrator().AddColumn(&marketplaceschema.Settlement{}, "ReclaimedAmount"); err != nil {
+			return err
+		}
+	}
+	// Old fully reclaimed rows remain valid without rewriting their amounts.
+	return tx.AutoMigrate(&marketplaceschema.IncomeReclaim{})
 }
 
 func marketplaceSubscriptionBillingNeedsRepair(db *gorm.DB) bool {

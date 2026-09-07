@@ -13,10 +13,10 @@ func ClassifyRequestHealth(successRate float64, requestCount int64) string {
 	if requestCount <= 0 {
 		return RequestHealthUnknown
 	}
-	if successRate >= 90 {
+	if successRate > 90 {
 		return RequestHealthHealthy
 	}
-	if successRate >= 85 {
+	if successRate >= 75 {
 		return RequestHealthUnstable
 	}
 	return RequestHealthFailed

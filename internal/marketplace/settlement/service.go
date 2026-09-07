@@ -2,7 +2,11 @@ package settlement
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +15,7 @@ import (
 	marketplaceschema "github.com/sh2001sh/new-api/internal/marketplace/schema"
 	platformdb "github.com/sh2001sh/new-api/internal/platform/db"
 	platformobservability "github.com/sh2001sh/new-api/internal/platform/observability"
+	platformruntime "github.com/sh2001sh/new-api/internal/platform/runtime"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -43,7 +48,8 @@ type ReleaseFilter struct {
 	StartTimestamp int64
 	EndTimestamp   int64
 	Limit          int
-	MaxAmount      int64 // 0 means reclaim all matching released settlements
+	MaxAmount      int64 // Exact amount to reclaim; 0 means all matching released earnings.
+	OperationID    string
 }
 
 type ReleaseResult struct {
@@ -198,40 +204,108 @@ func ReleasePending(filter ReleaseFilter) (ReleaseResult, error) {
 	return result, nil
 }
 
-// ReclaimPending moves selected released owner earnings to administrator user 1.
+// ReclaimPending transfers released earnings atomically, including partial records.
+// OperationID must be reused when retrying the same administrator action.
 func ReclaimPending(filter ReleaseFilter) (ReclaimResult, error) {
+	if filter.MaxAmount < 0 || len(filter.OperationID) > 64 {
+		return ReclaimResult{}, errors.New("invalid income reclaim amount or operation ID")
+	}
 	if reclaimHook == nil {
-		return ReclaimResult{}, errors.New("marketplace settlement release hook is not registered")
+		return ReclaimResult{}, errors.New("marketplace settlement reclaim hook is not registered")
 	}
-	if filter.Limit <= 0 {
-		filter.Limit = 5000
+	// Legacy callers can still reclaim all without an operation ID. New clients
+	// supply one to make retries safe after a lost response, including partials.
+	operationID := filter.OperationID
+	if operationID == "" {
+		operationID = platformruntime.GetUUID()
 	}
-	query := platformdb.DB.Where("status = ?", statusReleased).Order("created_at asc").Limit(filter.Limit)
-	if len(filter.OwnerUserIDs) > 0 {
-		query = query.Where("owner_user_id IN ?", filter.OwnerUserIDs)
-	}
-	if filter.StartTimestamp > 0 {
-		query = query.Where("created_at >= ?", time.Unix(filter.StartTimestamp, 0))
-	}
-	if filter.EndTimestamp > 0 {
-		query = query.Where("created_at < ?", time.Unix(filter.EndTimestamp+1, 0))
-	}
-	var settlements []marketplaceschema.Settlement
-	if err := query.Find(&settlements).Error; err != nil {
+	filter.OwnerUserIDs = slices.Clone(filter.OwnerUserIDs)
+	slices.Sort(filter.OwnerUserIDs)
+	filter.OwnerUserIDs = slices.Compact(filter.OwnerUserIDs)
+	filter.OperationID = ""
+	filter.Limit = 0
+	payload, err := json.Marshal(filter)
+	if err != nil {
 		return ReclaimResult{}, err
 	}
+	operation := marketplaceschema.IncomeReclaim{ID: operationID, Fingerprint: fmt.Sprintf("%x", sha256.Sum256(payload))}
 	result := ReclaimResult{}
-	var selectedAmount int64
-	for index := range settlements {
-		if filter.MaxAmount > 0 && selectedAmount+settlements[index].OwnerNetAmount > filter.MaxAmount {
-			continue
+	err = platformdb.DB.Transaction(func(tx *gorm.DB) error {
+		inserted := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&operation)
+		if inserted.Error != nil {
+			return inserted.Error
 		}
-		if err := reclaimOne(settlements[index].ID); err != nil {
-			return result, err
+		if inserted.RowsAffected == 0 {
+			var existing marketplaceschema.IncomeReclaim
+			if err := tx.First(&existing, "id = ?", operationID).Error; err != nil {
+				return err
+			}
+			if existing.Fingerprint != operation.Fingerprint {
+				return errors.New("回收操作标识已用于其他筛选条件或金额")
+			}
+			result = ReclaimResult{Count: existing.Count, Amount: existing.Amount}
+			return nil
 		}
-		result.Count++
-		result.Amount += settlements[index].OwnerNetAmount
-		selectedAmount += settlements[index].OwnerNetAmount
+		query := tx.Model(&marketplaceschema.Settlement{}).
+			Where("status = ? AND owner_net_amount > reclaimed_amount", statusReleased)
+		if len(filter.OwnerUserIDs) > 0 {
+			query = query.Where("owner_user_id IN ?", filter.OwnerUserIDs)
+		}
+		if filter.StartTimestamp > 0 {
+			query = query.Where("created_at >= ?", time.Unix(filter.StartTimestamp, 0))
+		}
+		if filter.EndTimestamp > 0 {
+			query = query.Where("created_at < ?", time.Unix(filter.EndTimestamp+1, 0))
+		}
+		var cursor *marketplaceschema.Settlement
+		for {
+			batchQuery := query.Clauses(clause.Locking{Strength: "UPDATE"}).Order("created_at ASC, id ASC").Limit(500)
+			if cursor != nil {
+				batchQuery = batchQuery.Where("created_at > ? OR (created_at = ? AND id > ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+			}
+			var items []marketplaceschema.Settlement
+			if err := batchQuery.Find(&items).Error; err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				break
+			}
+			for _, item := range items {
+				amount := item.OwnerNetAmount - item.ReclaimedAmount
+				if filter.MaxAmount > 0 {
+					amount = min(amount, filter.MaxAmount-result.Amount)
+				}
+				if amount <= 0 {
+					continue
+				}
+				if err := reclaimHook(tx, item.OwnerUserID, 1, int(amount), "marketplace-reclaim:"+operationID+":"+item.ID); err != nil {
+					return err
+				}
+				updates := map[string]any{"reclaimed_amount": item.ReclaimedAmount + amount, "reclaimed_at": time.Now().UTC()}
+				if item.ReclaimedAmount+amount == item.OwnerNetAmount {
+					updates["status"] = statusReclaimed
+				}
+				if err := tx.Model(&item).Updates(updates).Error; err != nil {
+					return err
+				}
+				result.Count++
+				result.Amount += amount
+				if filter.MaxAmount > 0 && result.Amount == filter.MaxAmount {
+					break
+				}
+			}
+			if filter.MaxAmount > 0 && result.Amount == filter.MaxAmount {
+				break
+			}
+			cursor = &items[len(items)-1]
+		}
+		if filter.MaxAmount > 0 && result.Amount < filter.MaxAmount {
+			return errors.New("所选范围的可回收收益不足，未扣除额度，请刷新后重试")
+		}
+		return tx.Model(&operation).Updates(map[string]any{"count": result.Count, "amount": result.Amount}).Error
+	})
+	if err != nil {
+		return ReclaimResult{}, err
 	}
 	return result, nil
 }
@@ -326,23 +400,6 @@ func forfeitOneTx(tx *gorm.DB, item *marketplaceschema.Settlement) error {
 	}
 	now := time.Now().UTC()
 	return tx.Model(item).Updates(map[string]any{"status": statusForfeited, "forfeited_at": now}).Error
-}
-
-func reclaimOne(settlementID string) error {
-	return platformdb.DB.Transaction(func(tx *gorm.DB) error {
-		var item marketplaceschema.Settlement
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, "id = ?", settlementID).Error; err != nil {
-			return err
-		}
-		if item.Status != statusReleased {
-			return nil
-		}
-		if err := reclaimHook(tx, item.OwnerUserID, 1, int(item.OwnerNetAmount), "marketplace-reclaim:"+item.ID); err != nil {
-			return err
-		}
-		now := time.Now().UTC()
-		return tx.Model(&item).Updates(map[string]any{"status": statusReclaimed, "reclaimed_at": now}).Error
-	})
 }
 
 func releaseOne(settlementID string) error {

@@ -11,6 +11,7 @@ import (
 	commerceapp "github.com/sh2001sh/new-api/internal/commerce/app"
 	marketplaceapp "github.com/sh2001sh/new-api/internal/marketplace/app"
 	httpapi "github.com/sh2001sh/new-api/internal/platform/transport/http/httpapi"
+	"math"
 )
 
 func ListGroups(c *gin.Context) {
@@ -153,6 +154,7 @@ func ListMyUsageLogs(c *gin.Context) {
 		EndTimestamp:      queryInt64(c, "end_timestamp"),
 		Page:              queryInt(c, "page", 1),
 		PageSize:          queryInt(c, "page_size", 20),
+		SummaryOnly:       c.Query("summary_only") == "true",
 	})
 	respond(c, result, err)
 }
@@ -436,10 +438,64 @@ func ListAdminOwnerIncome(c *gin.Context) {
 }
 
 func ReleaseAdminOwnerIncome(c *gin.Context) {
+	// Never let a malformed selection or time filter widen a financial action.
+	values := c.Request.URL.Query()
+	ownerValues := values["owner_user_ids"]
+	if len(ownerValues) != 1 || strings.TrimSpace(ownerValues[0]) == "" {
+		httpapi.ApiError(c, fmt.Errorf("请选择需要回收收益的渠道主"))
+		return
+	}
+	var ownerIDs []int
+	for _, value := range strings.Split(ownerValues[0], ",") {
+		id, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || id <= 0 {
+			httpapi.ApiError(c, fmt.Errorf("渠道主 ID 必须为正整数"))
+			return
+		}
+		ownerIDs = append(ownerIDs, id)
+	}
+	var startTimestamp, endTimestamp int64
+	for _, field := range []struct {
+		name   string
+		target *int64
+	}{{"start_timestamp", &startTimestamp}, {"end_timestamp", &endTimestamp}} {
+		if parts, exists := values[field.name]; exists {
+			if len(parts) != 1 {
+				httpapi.ApiError(c, fmt.Errorf("收益时间参数重复"))
+				return
+			}
+			parsed, err := strconv.ParseInt(parts[0], 10, 64)
+			if err != nil || parsed < 0 || parsed == math.MaxInt64 {
+				httpapi.ApiError(c, fmt.Errorf("收益时间参数无效"))
+				return
+			}
+			*field.target = parsed
+		}
+	}
+	if startTimestamp > 0 && endTimestamp > 0 && startTimestamp > endTimestamp {
+		httpapi.ApiError(c, fmt.Errorf("开始时间不能晚于结束时间"))
+		return
+	}
+	maxAmount := int64(0)
+	if parts, exists := values["max_amount"]; exists {
+		if len(parts) != 1 {
+			httpapi.ApiError(c, fmt.Errorf("回收金额参数重复"))
+			return
+		}
+		var err error
+		maxAmount, err = strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || maxAmount <= 0 {
+			httpapi.ApiError(c, fmt.Errorf("回收金额必须为正整数额度；全部回收请不传金额"))
+			return
+		}
+		if strings.TrimSpace(c.Query("operation_id")) == "" {
+			httpapi.ApiError(c, fmt.Errorf("部分回收需要操作标识，以防重复扣款"))
+			return
+		}
+	}
 	result, err := marketplaceapp.ReleaseAdminOwnerIncome(marketplaceapp.AdminOwnerIncomeQuery{
-		OwnerSearch: c.Query("owner_search"), OwnerUserIDs: queryIntList(c, "owner_user_ids"), StartTimestamp: queryInt64(c, "start_timestamp"),
-		EndTimestamp: queryInt64(c, "end_timestamp"),
-		MaxAmount:    queryInt64(c, "max_amount"),
+		OperationID: c.Query("operation_id"), OwnerSearch: c.Query("owner_search"), OwnerUserIDs: ownerIDs,
+		StartTimestamp: startTimestamp, EndTimestamp: endTimestamp, MaxAmount: maxAmount,
 	})
 	respond(c, result, err)
 }

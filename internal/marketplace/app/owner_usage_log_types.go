@@ -14,6 +14,7 @@ type OwnerUsageLogQuery struct {
 	EndTimestamp      int64
 	Page              int
 	PageSize          int
+	SummaryOnly       bool
 	userFilterIDs     []int
 	searchUserIDs     []int
 }
@@ -45,6 +46,7 @@ type OwnerUsageLogItem struct {
 	FirstByteTrace     map[string]interface{} `json:"first_byte_trace,omitempty"`
 	ConsumerAmount     int64                  `json:"consumer_amount"`
 	OwnerIncome        int64                  `json:"owner_income"`
+	ReclaimedIncome    int64                  `json:"reclaimed_income"`
 	PlatformCommission int64                  `json:"platform_commission"`
 	Multiplier         float64                `json:"multiplier"`
 	IncomeStatus       string                 `json:"income_status"`

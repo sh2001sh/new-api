@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,28 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIncomeReclaimRejectsInvalidAmountsBeforeAccessingBalances(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.POST("/reclaim", ReleaseAdminOwnerIncome)
+	for _, query := range []string{
+		"max_amount=", "max_amount=-1", "max_amount=0", "max_amount=nope", "max_amount=1.5",
+		"max_amount=9223372036854775808", "max_amount=40",
+	} {
+		t.Run(query, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/reclaim?owner_user_ids=10&"+query, nil))
+			var body struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+			require.False(t, body.Success)
+			require.NotEmpty(t, body.Message)
+		})
+	}
+}
 
 func TestMarketplaceRoutesRequireAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -74,5 +97,24 @@ func TestMarketplaceRoutesAreRegistered(t *testing.T) {
 	}
 	for route, registered := range want {
 		require.Truef(t, registered, "route %s was not registered", route)
+	}
+}
+
+func TestIncomeReclaimRejectsFiltersThatWouldWidenSelection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.POST("/reclaim", ReleaseAdminOwnerIncome)
+	for _, query := range []string{"", "owner_user_ids=", "owner_user_ids=nope", "owner_user_ids=0", "owner_user_ids=10,nope", "owner_user_ids=10&start_timestamp=oops", "owner_user_ids=10&end_timestamp=-1", "owner_user_ids=10&start_timestamp=100&end_timestamp=50"} {
+		t.Run(query, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/reclaim?"+query, nil))
+			var body struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+			require.False(t, body.Success)
+			require.NotEmpty(t, body.Message)
+		})
 	}
 }

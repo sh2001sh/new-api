@@ -51,6 +51,11 @@ func TestListOwnerUsageLogsScopesAndSanitizesChannelCalls(t *testing.T) {
 	require.EqualValues(t, 1, result.Summary.FailedCount)
 	require.Equal(t, int64(100), result.Summary.ConsumerAmount)
 	require.Equal(t, int64(95), result.Summary.OwnerIncome)
+	summaryOnly, err := ListOwnerUsageLogs(10, OwnerUsageLogQuery{SummaryOnly: true})
+	require.NoError(t, err)
+	require.Equal(t, result.Summary, summaryOnly.Summary)
+	require.Equal(t, result.Total, summaryOnly.Total)
+	require.Empty(t, summaryOnly.Items, "income overview must not load unused log rows")
 	require.Len(t, result.Items, 2)
 	itemsByRequestID := make(map[string]OwnerUsageLogItem, len(result.Items))
 	for _, item := range result.Items {
@@ -178,7 +183,7 @@ func TestListOwnerUsageLogsFiltersRowsAndIncomeByTimeRange(t *testing.T) {
 	require.Equal(t, "current", result.Items[0].RequestID)
 }
 
-func openOwnerUsageLogTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
+func openOwnerUsageLogTestDB(t testing.TB) (*gorm.DB, *gorm.DB) {
 	t.Helper()
 	originalDB, originalLogDB := platformdb.DB, platformdb.LogDB
 	originalSQLite, originalPostgreSQL := platformdb.UsingSQLite, platformdb.UsingPostgreSQL
@@ -195,4 +200,19 @@ func openOwnerUsageLogTestDB(t *testing.T) (*gorm.DB, *gorm.DB) {
 	require.NoError(t, db.AutoMigrate(&identityschema.User{}, &marketplaceschema.Channel{}, &marketplaceschema.Group{}, &marketplaceschema.Settlement{}))
 	require.NoError(t, logDB.AutoMigrate(&auditschema.Log{}))
 	return db, logDB
+}
+
+func TestOwnerLogIncludesPartialAndLegacyFullReclaims(t *testing.T) {
+	for _, test := range []struct {
+		status    string
+		reclaimed int64
+		want      int64
+	}{{"released", 40, 40}, {"reclaimed", 0, 95}} {
+		t.Run(test.status, func(t *testing.T) {
+			item := ownerUsageLogItem(auditschema.Log{}, ownerUsageChannel{}, marketplaceschema.Settlement{ID: "income", OwnerNetAmount: 95, Status: test.status, ReclaimedAmount: test.reclaimed}, "user")
+			require.EqualValues(t, 95, item.OwnerIncome)
+			require.Equal(t, test.want, item.ReclaimedIncome)
+			require.Equal(t, test.status, item.IncomeStatus)
+		})
+	}
 }

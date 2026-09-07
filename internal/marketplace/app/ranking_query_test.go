@@ -315,10 +315,10 @@ func TestLatestRequestStatusUsesMostRecentNonEmptyBucket(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, "unknown", latestRequestStatus(nil))
-	require.Equal(t, "healthy", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 90, RequestCount: 3}}))
+	require.Equal(t, "unstable", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 90, RequestCount: 3}}))
 	require.Equal(t, "unstable", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 89.99, RequestCount: 8}}))
 	require.Equal(t, "unstable", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 85, RequestCount: 8}}))
-	require.Equal(t, "failed", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 84.99, RequestCount: 8}}))
+	require.Equal(t, "failed", latestRequestStatus([]RecentRequestBucket{{SuccessRate: 74.99, RequestCount: 8}}))
 	require.Equal(t, "failed", latestRequestStatus([]RecentRequestBucket{
 		{SuccessRate: 100, RequestCount: 4},
 		{SuccessRate: 70, RequestCount: 2},

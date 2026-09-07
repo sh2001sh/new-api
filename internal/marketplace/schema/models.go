@@ -252,6 +252,7 @@ type Settlement struct {
 	PlatformCommission     int64      `json:"platform_commission" gorm:"column:platform_commission;not null"`
 	TransactionFee         int64      `json:"transaction_fee" gorm:"column:transaction_fee;not null"`
 	OwnerNetAmount         int64      `json:"owner_net_amount" gorm:"column:owner_net_amount;not null"`
+	ReclaimedAmount        int64      `json:"reclaimed_amount" gorm:"column:reclaimed_amount;not null;default:0"`
 	Multiplier             float64    `json:"multiplier" gorm:"column:multiplier;not null"`
 	SubscriptionMultiplier float64    `json:"subscription_multiplier" gorm:"column:subscription_multiplier;not null;default:0"`
 	Status                 string     `json:"status" gorm:"column:status;size:24;index;not null"`
@@ -264,6 +265,17 @@ type Settlement struct {
 }
 
 func (Settlement) TableName() string { return tableName("settlements") }
+
+// IncomeReclaim records a committed operation so retries cannot deduct twice.
+type IncomeReclaim struct {
+	ID          string    `gorm:"primaryKey;size:64"`
+	Fingerprint string    `gorm:"size:64;not null"`
+	Count       int       `gorm:"not null;default:0"`
+	Amount      int64     `gorm:"not null;default:0"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+}
+
+func (IncomeReclaim) TableName() string { return tableName("income_reclaims") }
 
 func (settlement *Settlement) BeforeCreate(_ *gorm.DB) error {
 	if settlement.ID == "" {

@@ -90,3 +90,39 @@ func TestListAdminOwnerIncomeKeepsDeletedChannelHistory(t *testing.T) {
 	require.Equal(t, "ABC123", filtered.Items[0].OwnerExternalID)
 	require.EqualValues(t, 500, filtered.TotalIncome)
 }
+
+func TestPartialReclaimIsConsistentAcrossAdminChannelAndOwnerLogSummaries(t *testing.T) {
+	db := openMarketplaceAppTestDB(t)
+	require.NoError(t, db.AutoMigrate(&identityschema.User{}, &marketplaceschema.Settlement{}))
+	require.NoError(t, db.Create(&identityschema.User{Id: 42, ExternalId: "ABC123", Username: "owner-42"}).Error)
+	require.NoError(t, db.Create([]marketplaceschema.Settlement{
+		{ID: "partial", RequestID: "partial", GroupID: "g", OwnerUserID: 42, OwnerNetAmount: 95, ReclaimedAmount: 40, Status: "released"},
+		{ID: "legacy-full", RequestID: "legacy-full", GroupID: "g", OwnerUserID: 42, OwnerNetAmount: 20, Status: "reclaimed"},
+	}).Error)
+	admin, err := ListAdminOwnerIncome(AdminOwnerIncomeQuery{OwnerSearch: "ABC123"})
+	require.NoError(t, err)
+	require.EqualValues(t, 115, admin.TotalIncome)
+	require.EqualValues(t, 55, admin.ReleasedIncome)
+	require.EqualValues(t, 60, admin.ReclaimedIncome)
+	require.EqualValues(t, 2, admin.RequestCount)
+	channels, err := earningsByGroupIDs([]string{"g"})
+	require.NoError(t, err)
+	require.Equal(t, admin.ReleasedIncome, channels["g"].ReleasedIncome)
+	require.Equal(t, admin.ReclaimedIncome, channels["g"].ReclaimedIncome)
+	totals, err := loadOwnerUsageSettlementSummary(42, nil, []string{"g"}, OwnerUsageLogQuery{})
+	require.NoError(t, err)
+	require.Equal(t, admin.ReleasedIncome, totals.ReleasedIncome)
+	require.Equal(t, admin.ReclaimedIncome, totals.ReclaimedIncome)
+}
+
+func TestIncomeReclaimSelectionCannotEscapeOwnerSearch(t *testing.T) {
+	db := openMarketplaceAppTestDB(t)
+	require.NoError(t, db.AutoMigrate(&identityschema.User{}))
+	require.NoError(t, db.Create([]identityschema.User{
+		{Id: 42, ExternalId: "ABC123", Username: "wanted", AffCode: "wanted"},
+		{Id: 77, ExternalId: "XYZ789", Username: "other", AffCode: "other"},
+	}).Error)
+	result, err := ReleaseAdminOwnerIncome(AdminOwnerIncomeQuery{OwnerSearch: "ABC123", OwnerUserIDs: []int{77}, MaxAmount: 40})
+	require.NoError(t, err)
+	require.Zero(t, result.ReclaimedAmount)
+}

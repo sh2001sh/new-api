@@ -51,6 +51,9 @@ func ListOwnerUsageLogs(ownerUserID int, query OwnerUsageLogQuery) (*OwnerUsageL
 	var logs []auditschema.Log
 	var summary OwnerUsageLogSummary
 	loadLogs := func() error {
+		if query.SummaryOnly {
+			return nil
+		}
 		return ownerUsageLogDBQuery(channelIDs, query).Order("id desc").
 			Select("id, created_at, type, content, user_id, token_name, model_name, quota, prompt_tokens, completion_tokens, use_time, is_stream, channel_id, request_id, upstream_request_id, other").
 			Limit(query.PageSize).
@@ -58,9 +61,6 @@ func ListOwnerUsageLogs(ownerUserID int, query OwnerUsageLogQuery) (*OwnerUsageL
 			Find(&logs).Error
 	}
 	if platformdb.LogDB.Dialector.Name() == "sqlite" {
-		if err := ownerUsageLogDBQuery(channelIDs, query).Count(&result.Total).Error; err != nil {
-			return nil, err
-		}
 		if summary, err = loadOwnerUsageSummary(ownerUserID, channelIDs, groupIDs, query); err != nil {
 			return nil, err
 		}
@@ -69,9 +69,6 @@ func ListOwnerUsageLogs(ownerUserID int, query OwnerUsageLogQuery) (*OwnerUsageL
 		}
 	} else {
 		var group errgroup.Group
-		group.Go(func() error {
-			return ownerUsageLogDBQuery(channelIDs, query).Count(&result.Total).Error
-		})
 		group.Go(func() error {
 			var err error
 			summary, err = loadOwnerUsageSummary(ownerUserID, channelIDs, groupIDs, query)
@@ -83,6 +80,10 @@ func ListOwnerUsageLogs(ownerUserID int, query OwnerUsageLogQuery) (*OwnerUsageL
 		}
 	}
 	result.Summary = summary
+	result.Total = summary.RequestCount
+	if query.SummaryOnly {
+		return result, nil
+	}
 
 	var settlements map[string]marketplaceschema.Settlement
 	var externalUserIDs map[int]string
@@ -230,8 +231,8 @@ func loadOwnerUsageSettlementSummary(ownerUserID int, channelIDs []int, groupIDs
 		Where("owner_user_id = ? AND group_id IN ?", ownerUserID, groupIDs).
 		Select("COALESCE(SUM(consumer_amount), 0) AS consumer_amount, COALESCE(SUM(owner_net_amount), 0) AS owner_income, " +
 			"COALESCE(SUM(CASE WHEN status = 'pending' THEN owner_net_amount ELSE 0 END), 0) AS pending_income, " +
-			"COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount ELSE 0 END), 0) AS released_income, " +
-			"COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE 0 END), 0) AS reclaimed_income")
+			"COALESCE(SUM(CASE WHEN status = 'released' THEN owner_net_amount - reclaimed_amount ELSE 0 END), 0) AS released_income, " +
+			"COALESCE(SUM(CASE WHEN status = 'reclaimed' THEN owner_net_amount ELSE reclaimed_amount END), 0) AS reclaimed_income")
 	if hasOwnerUsageContentFilters(query) {
 		var requestIDs []string
 		if err := ownerUsageLogDBQuery(channelIDs, query).
@@ -392,6 +393,10 @@ func ownerUsageLogItem(log auditschema.Log, channel ownerUsageChannel, settlemen
 	if settlement.ID != "" {
 		item.ConsumerAmount = settlement.ConsumerAmount
 		item.OwnerIncome = settlement.OwnerNetAmount
+		item.ReclaimedIncome = settlement.ReclaimedAmount
+		if settlement.Status == "reclaimed" {
+			item.ReclaimedIncome = settlement.OwnerNetAmount
+		}
 		item.PlatformCommission = settlement.PlatformCommission
 		item.Multiplier = settlement.Multiplier
 		item.IncomeStatus = settlement.Status

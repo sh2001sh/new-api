@@ -151,9 +151,15 @@ func newSubscriptionBillingSession(c *gin.Context, relayInfo *relaycommon.RelayI
 	if groupRatio > 0 {
 		baseQuotaScale /= groupRatio
 	}
-	entitlement, err := getMonthlyPassEntitlement(relayInfo.UserId)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	var entitlement *MonthlyPassEntitlement
+	// Multiplier cards are official-channel benefits, including when a market
+	// group accepts subscription funds. Unknown scope must not grant a discount.
+	if relayInfo.ChannelMeta != nil && strings.EqualFold(strings.TrimSpace(relayInfo.ChannelScope), gatewayschema.ChannelScopeOfficial) {
+		var err error
+		entitlement, err = getMonthlyPassEntitlement(relayInfo.UserId)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		}
 	}
 	packageMultiplier := 1.0
 	quotaScale := baseQuotaScale
