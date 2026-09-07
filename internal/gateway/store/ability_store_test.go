@@ -12,6 +12,24 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestPricingAbilitiesExcludeDisabledAndMissingChannels(t *testing.T) {
+	originalDB := platformdb.DB
+	t.Cleanup(func() { platformdb.DB = originalDB })
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	platformdb.DB = db
+	require.NoError(t, db.AutoMigrate(&gatewayschema.Ability{}, &gatewayschema.Channel{}))
+	require.NoError(t, db.Create(&gatewayschema.Channel{Id: 1, Status: 1}).Error)
+	require.NoError(t, db.Create(&gatewayschema.Channel{Id: 2, Status: 2}).Error)
+	for id := 1; id <= 3; id++ {
+		require.NoError(t, db.Create(&gatewayschema.Ability{Group: "vip", Model: "test", ChannelId: id, Enabled: true}).Error)
+	}
+	abilities, err := LoadAllEnabledAbilitiesWithChannels()
+	require.NoError(t, err)
+	require.Len(t, abilities, 1)
+	require.Equal(t, 1, abilities[0].ChannelId)
+}
+
 func TestChannelHasExclusiveEnabledAbility(t *testing.T) {
 	originalDB := platformdb.DB
 	originalSQLite := platformdb.UsingSQLite

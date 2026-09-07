@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { PricingModel } from '../types'
-import { mergePricingModels } from './merge-pricing-models.ts'
+import {
+  availablePricingModels,
+  mergePricingModels,
+} from './merge-pricing-models.ts'
 
 function model(
   name: string,
@@ -40,5 +43,36 @@ describe('mergePricingModels', () => {
     assert.equal(result.length, 1)
     assert.equal(result[0].description, 'catalog metadata')
     assert.equal(result[0].model_ratio, 2)
+  })
+
+  test('hides configured prices without a usable group and keeps third-party-only models', () => {
+    const result = availablePricingModels(
+      [model('official', { enable_groups: ['vip'] })],
+      [model('official'), model('third-party'), model('price-only')],
+      ['official', 'THIRD-PARTY']
+    )
+    assert.deepEqual(
+      result.map((item) => item.model_name),
+      ['official', 'third-party']
+    )
+    assert.deepEqual(result[0].enable_groups, ['vip'])
+  })
+
+  test('an empty availability list does not fall back to billing configuration', () => {
+    assert.deepEqual(
+      availablePricingModels([model('stale')], [model('priced')], []),
+      []
+    )
+  })
+
+  test('older API responses only expose catalog entries with groups', () => {
+    const result = availablePricingModels(
+      [model('available', { enable_groups: ['default'] }), model('no-group')],
+      [model('price-only')]
+    )
+    assert.deepEqual(
+      result.map((item) => item.model_name),
+      ['available']
+    )
   })
 })

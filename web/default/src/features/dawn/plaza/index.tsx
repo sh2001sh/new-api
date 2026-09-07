@@ -29,18 +29,18 @@ import {
   X,
 } from 'lucide-react'
 import { SiteSeo } from '@/components/seo'
+import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
   EXCLUDED_GROUPS,
   QUOTA_TYPE_VALUES,
 } from '@/features/pricing/constants'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
-import { mergePricingModels } from '@/features/pricing/lib/merge-pricing-models'
+import { availablePricingModels } from '@/features/pricing/lib/merge-pricing-models'
 import { formatPrice, formatGroupPrice } from '@/features/pricing/lib/price'
 import type { PricingModel, TokenUnit } from '@/features/pricing/types'
 import { DawnModal } from '../components/dawn-modal'
 import { DawnNav } from '../components/dawn-nav'
 import { DawnQueryError } from '../components/query-error'
-import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 
 const VENDOR_RULES: Array<[RegExp, string]> = [
   [/^gpt|^o[134](-mini)?|^chatgpt/, 'OpenAI'],
@@ -81,7 +81,13 @@ export function DawnPlaza() {
     retry: false,
   })
   const requestCounts = useMemo(
-    () => new Map((perfQuery.data?.data?.models ?? []).map((item) => [item.model_name, item.request_count ?? 0])),
+    () =>
+      new Map(
+        (perfQuery.data?.data?.models ?? []).map((item) => [
+          item.model_name,
+          item.request_count ?? 0,
+        ])
+      ),
     [perfQuery.data]
   )
   const [unit, setUnit] = useState<TokenUnit>('M')
@@ -93,16 +99,17 @@ export function DawnPlaza() {
 
   const models = useMemo(
     () =>
-      mergePricingModels(pricing.models, pricing.pricedModelDetails)
-        // priced_model_details intentionally does not expose source groups;
-        // requiring enable_groups here filtered every complete pricing detail
-        // out and made the plaza show “无匹配模型”.
+      availablePricingModels(
+        pricing.models,
+        pricing.pricedModelDetails,
+        pricing.availableModels
+      )
         .filter((model) => Boolean(model.model_name?.trim()))
         .map((model) => ({
           ...model,
           vendorName: model.vendor_name || guessVendor(model.model_name),
         })),
-    [pricing.models, pricing.pricedModelDetails]
+    [pricing.models, pricing.pricedModelDetails, pricing.availableModels]
   )
 
   const vendors = useMemo(
@@ -133,7 +140,8 @@ export function DawnPlaza() {
     if (sort === 'price') {
       filtered.sort((a, b) => a.model_ratio - b.model_ratio)
     } else if (sort === 'hot') {
-      const coverage = (m: (typeof filtered)[number]) => requestCounts.get(m.model_name) ?? 0
+      const coverage = (m: (typeof filtered)[number]) =>
+        requestCounts.get(m.model_name) ?? 0
       filtered.sort(
         (a, b) =>
           coverage(b) - coverage(a) || a.model_name.localeCompare(b.model_name)
@@ -414,13 +422,13 @@ export function DawnPlaza() {
               ) : (
                 <>
                   <div
-                    className={`pc${detailModel.model_ratio === 0 ? ' free' : ''}`}
+                    className={`pc${detailModel.model_ratio === 0 ? 'free' : ''}`}
                   >
                     <b>{formatPrice(detailModel, 'input', unit)}</b>
                     <span>输入 / {unit}</span>
                   </div>
                   <div
-                    className={`pc${detailModel.model_ratio === 0 ? ' free' : ''}`}
+                    className={`pc${detailModel.model_ratio === 0 ? 'free' : ''}`}
                   >
                     <b>{formatPrice(detailModel, 'output', unit)}</b>
                     <span>输出 / {unit}</span>
@@ -621,7 +629,7 @@ function ModelRow(props: {
         <span className='ven'>{model.vendorName}</span>
         {metered && <span className='btag'>按量</span>}
       </span>
-      <span className={`price${isFree ? ' free' : ''}`}>
+      <span className={`price${isFree ? 'free' : ''}`}>
         <b>
           {metered
             ? meteredPrice(model)
@@ -631,7 +639,7 @@ function ModelRow(props: {
         </b>
         <span className='u'> /{unit}</span>
       </span>
-      <span className={`price${isFree ? ' free' : ''}`}>
+      <span className={`price${isFree ? 'free' : ''}`}>
         <b>
           {metered
             ? '按量'

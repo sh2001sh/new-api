@@ -31,5 +31,8 @@ export async function getPricing(): Promise<PricingData> {
     // leave its skeleton visible forever when the backend is unavailable.
     timeout: 5000,
   } as Record<string, unknown>)
+  if (!res.data.success) {
+    throw new Error(res.data.message || 'Unable to load model pricing')
+  }
   return res.data
 }

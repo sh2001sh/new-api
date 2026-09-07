@@ -44,8 +44,8 @@ func LoadAllEnabledAbilitiesWithChannels() ([]gatewayschema.AbilityWithChannel, 
 	var abilities []gatewayschema.AbilityWithChannel
 	err := platformdb.DB.Table("abilities").
 		Select("abilities.*, channels.type as channel_type").
-		Joins("left join channels on abilities.channel_id = channels.id").
-		Where("abilities.enabled = ?", true).
+		Joins("join channels on abilities.channel_id = channels.id").
+		Where("abilities.enabled = ? AND channels.status = ?", true, constant.ChannelStatusEnabled).
 		Scan(&abilities).Error
 	return abilities, err
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	gatewayroutingapp "github.com/sh2001sh/new-api/internal/gateway/routing/app"
+	marketplaceapp "github.com/sh2001sh/new-api/internal/marketplace/app"
 )
 
 func GetPricing(c *gin.Context) {
@@ -13,9 +14,18 @@ func GetPricing(c *gin.Context) {
 	_, hasUser := c.Get("id")
 
 	payload := gatewayroutingapp.BuildPricingPayload(userID, hasUser)
+	availableModels, err := marketplaceapp.ListAvailablePricingModels(userID)
+	if err != nil {
+		httpapi.ApiError(c, err)
+		return
+	}
+	for _, model := range payload.Data {
+		availableModels = append(availableModels, model.ModelName)
+	}
 	c.JSON(stdhttp.StatusOK, gin.H{
 		"success":              true,
 		"data":                 payload.Data,
+		"available_models":     availableModels,
 		"priced_models":        payload.PricedModels,
 		"priced_model_details": payload.PricedModelDetails,
 		"vendors":              payload.Vendors,

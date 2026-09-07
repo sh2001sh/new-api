@@ -26,17 +26,18 @@ import {
   Sunrise,
   Zap,
 } from 'lucide-react'
-import { useMarketplaceGroups } from '@/features/marketplace/hooks'
-import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
-import { countFreeModels } from '@/features/pricing/lib/model-helpers'
-import { formatPrice } from '@/features/pricing/lib/price'
-import { useHomePageContent } from '@/features/home/hooks'
+import { useAuthStore } from '@/stores/auth-store'
+import { normalizeSystemName } from '@/lib/branding'
 import { Markdown } from '@/components/ui/markdown'
 import { SiteSeo } from '@/components/seo'
-import { normalizeSystemName } from '@/lib/branding'
-import { useAuthStore } from '@/stores/auth-store'
-import { CountUp, Reveal } from '../components/reveal'
+import { useHomePageContent } from '@/features/home/hooks'
+import { useMarketplaceGroups } from '@/features/marketplace/hooks'
+import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
+import { availablePricingModels } from '@/features/pricing/lib/merge-pricing-models'
+import { countFreeModels } from '@/features/pricing/lib/model-helpers'
+import { formatPrice } from '@/features/pricing/lib/price'
 import { DawnNav } from '../components/dawn-nav'
+import { CountUp, Reveal } from '../components/reveal'
 import { compactCount, fmtInt, pct, sec } from '../lib/format'
 
 const HOME_FILTERS = {
@@ -59,20 +60,25 @@ export function DawnHome() {
   const marketplace = useMarketplaceGroups(HOME_FILTERS)
   const pricing = usePricingData()
 
-  const groups = useMemo(() => marketplace.data?.items ?? [], [marketplace.data])
+  const groups = useMemo(
+    () => marketplace.data?.items ?? [],
+    [marketplace.data]
+  )
 
   const models = useMemo(
     () =>
-      (pricing.models.length ? pricing.models : pricing.pricedModelDetails)
+      availablePricingModels(
+        pricing.models,
+        pricing.pricedModelDetails,
+        pricing.availableModels
+      )
         .filter((model) => model.model_name)
         .filter(
           (model) => !model.model_name.toLowerCase().includes('embedding')
         ),
-    [pricing.models, pricing.pricedModelDetails]
+    [pricing.models, pricing.pricedModelDetails, pricing.availableModels]
   )
-  const freeCount = pricing.pricedModelDetails.length
-    ? countFreeModels(pricing.pricedModelDetails, pricing.groupRatio)
-    : 0
+  const freeCount = countFreeModels(models, pricing.groupRatio)
 
   const aggregates = useMemo(() => {
     const withTraffic = groups.filter((group) => group.request_count > 0)
@@ -81,8 +87,8 @@ export function DawnHome() {
     let ttft: number | null = null
     if (withTraffic.length) {
       availability =
-        (withTraffic.reduce((sum, g) => sum + g.success_rate * 100, 0) /
-          withTraffic.length)
+        withTraffic.reduce((sum, g) => sum + g.success_rate * 100, 0) /
+        withTraffic.length
       ttft =
         withTraffic.reduce((sum, g) => sum + g.avg_ttft_ms, 0) /
         withTraffic.length
@@ -106,12 +112,10 @@ export function DawnHome() {
     const onScroll = () => {
       const y = window.scrollY
       if (y > window.innerHeight) return
-      hero
-        .querySelectorAll<HTMLElement>('[data-speed]')
-        .forEach((element) => {
-          const speed = Number(element.dataset.speed ?? 0)
-          element.style.marginBottom = `${-y * speed}px`
-        })
+      hero.querySelectorAll<HTMLElement>('[data-speed]').forEach((element) => {
+        const speed = Number(element.dataset.speed ?? 0)
+        element.style.marginBottom = `${-y * speed}px`
+      })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -130,7 +134,11 @@ export function DawnHome() {
   if (content) {
     return (
       <div className='dawn'>
-        <SiteSeo title={`${normalizeSystemName()} | AI API`} description='AI 编程网关 · 分组市场与模型价目' canonicalPath='/' />
+        <SiteSeo
+          title={`${normalizeSystemName()} | AI API`}
+          description='AI 编程网关 · 分组市场与模型价目'
+          canonicalPath='/'
+        />
         <main className='overflow-x-hidden'>
           {isUrl ? (
             <iframe
@@ -152,7 +160,11 @@ export function DawnHome() {
 
   return (
     <div className='dawn'>
-      <SiteSeo title={`${brand} | AI 编程网关`} description='AI 编程网关 · 分组市场与模型价目' canonicalPath='/' />
+      <SiteSeo
+        title={`${brand} | AI 编程网关`}
+        description='AI 编程网关 · 分组市场与模型价目'
+        canonicalPath='/'
+      />
       <DawnNav variant='hero' />
 
       {/* 幕 0 · 日出 */}

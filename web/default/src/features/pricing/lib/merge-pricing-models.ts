@@ -20,8 +20,38 @@ export function mergePricingModels(
     const key = modelKey(model.model_name)
     if (!key) continue
     const catalogModel = merged.get(key)
-    merged.set(key, catalogModel ? { ...catalogModel, ...model } : model)
+    merged.set(
+      key,
+      catalogModel
+        ? {
+            ...catalogModel,
+            ...model,
+            enable_groups: catalogModel.enable_groups,
+          }
+        : model
+    )
   }
 
   return [...merged.values()]
+}
+
+/** Billing configuration alone must never make a model appear available. */
+export function availablePricingModels(
+  catalogModels: PricingModel[],
+  pricedModels: PricingModel[],
+  availableNames?: string[]
+): PricingModel[] {
+  const available = new Set(
+    (
+      availableNames ??
+      catalogModels
+        .filter((model) => model.enable_groups?.length > 0)
+        .map((model) => model.model_name)
+    )
+      .map(modelKey)
+      .filter(Boolean)
+  )
+  return mergePricingModels(catalogModels, pricedModels).filter((model) =>
+    available.has(modelKey(model.model_name))
+  )
 }
