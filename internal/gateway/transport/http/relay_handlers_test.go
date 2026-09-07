@@ -193,6 +193,25 @@ func TestShouldRetryGPTFailureOnlyWithinInitialWindow(t *testing.T) {
 	})
 }
 
+func TestShouldRetryAutoUsesRemainingBudgetAfterThirtySeconds(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Set("original_model", "gpt-5.6-sol")
+	started := time.Now().Add(-31 * time.Second)
+	httpctx.SetContextKey(ctx, constant.ContextKeyRequestStartTime, started)
+	profile := relaycommon.InitializeRequestProfile(ctx, "gpt-5.6-sol", ctx.Request.URL.Path, relaycommon.RequestProfileHint{IsStream: true})
+	relaycommon.MarkAutoRouteRequest(ctx)
+	relaycommon.MarkRemainingCrossGroupRoutes(ctx, 1)
+	budget := relaycommon.StartRequestBudget(ctx, profile, started)
+	relaycommon.ExpandRequestBudget(budget, 3)
+	require.True(t, budget.TryBeginAttempt(started, "first"))
+	require.True(t, budget.TryBeginAttempt(started.Add(15*time.Second), "second"))
+	err := types.NewOpenAIError(errors.New("upstream timeout"), types.ErrorCodeBadResponseStatusCode, http.StatusGatewayTimeout)
+	require.True(t, shouldRetry(ctx, err, 1), "a third Auto candidate still has budget")
+	gatewaystream.MarkSemanticCommitted(ctx)
+	require.False(t, shouldRetry(ctx, err, 1), "never replay delivered content")
+}
+
 func TestShouldRetryResponsesStreamBeforeContentDespiteLifecycleEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

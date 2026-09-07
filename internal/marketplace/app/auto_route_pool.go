@@ -346,8 +346,13 @@ func resolveRoutePoolBindings(ownerUserID int, selected map[string]int, config A
 			continue
 		}
 		_, score := autoRouteMetrics(group, snapshots[group.ID], config)
+		internalChannelID := 0
+		if channel.InternalChannelID != nil {
+			internalChannelID = *channel.InternalChannelID
+		}
 		candidates = append(candidates, scoredBinding{
 			binding: RoutingBinding{
+				InternalChannelID: internalChannelID, MaxConcurrency: channel.MaxConcurrency,
 				RouteKey: group.ID,
 				GroupID:  group.ID, InternalGroup: group.InternalGroupName,
 				OwnerUserID: group.OwnerUserID, SourceType: group.SourceType,

@@ -21,26 +21,50 @@ const (
 // RouteDecision is an internal-only record attached to the existing request audit log.
 // It contains identifiers, not provider credentials or channel names.
 type RouteDecision struct {
-	RequestID       string           `json:"request_id"`
-	Model           string           `json:"model"`
-	RequestedGroup  string           `json:"requested_group"`
-	SelectedGroup   string           `json:"selected_group,omitempty"`
-	Mode            string           `json:"mode,omitempty"`
-	ChannelID       int              `json:"channel_id,omitempty"`
-	CandidateGroups int              `json:"candidate_groups"`
-	Excluded        []string         `json:"excluded,omitempty"`
-	RetryCount      int              `json:"retry_count"`
-	AffinityHit     bool             `json:"affinity_hit"`
-	Fallback        bool             `json:"fallback"`
-	HealthState     string           `json:"health_state,omitempty"`
-	ProbeMode       string           `json:"probe_mode,omitempty"`
-	RequestType     RequestType      `json:"request_type,omitempty"`
-	Protocol        string           `json:"protocol,omitempty"`
-	AttemptsUsed    int              `json:"attempts_used,omitempty"`
-	MaxAttempts     int              `json:"max_attempts,omitempty"`
-	BudgetRemaining int64            `json:"budget_remaining_ms,omitempty"`
-	Attempts        []RouteAttempt   `json:"attempts,omitempty"`
-	Candidates      []RouteCandidate `json:"candidates,omitempty"`
+	RequestID           string                `json:"request_id"`
+	Model               string                `json:"model"`
+	RequestedGroup      string                `json:"requested_group"`
+	SelectedGroup       string                `json:"selected_group,omitempty"`
+	Mode                string                `json:"mode,omitempty"`
+	ChannelID           int                   `json:"channel_id,omitempty"`
+	CandidateGroups     int                   `json:"candidate_groups"`
+	Excluded            []string              `json:"excluded,omitempty"`
+	RetryCount          int                   `json:"retry_count"`
+	AffinityHit         bool                  `json:"affinity_hit"`
+	Fallback            bool                  `json:"fallback"`
+	HealthState         string                `json:"health_state,omitempty"`
+	ProbeMode           string                `json:"probe_mode,omitempty"`
+	RequestType         RequestType           `json:"request_type,omitempty"`
+	Protocol            string                `json:"protocol,omitempty"`
+	MigrationCapability MigrationCapability   `json:"migration_capability,omitempty"`
+	FirstByteTimeoutMS  int64                 `json:"first_byte_timeout_ms,omitempty"`
+	AttemptsUsed        int                   `json:"attempts_used,omitempty"`
+	MaxAttempts         int                   `json:"max_attempts,omitempty"`
+	BudgetRemaining     int64                 `json:"budget_remaining_ms,omitempty"`
+	Attempts            []RouteAttempt        `json:"attempts,omitempty"`
+	Candidates          []RouteCandidate      `json:"candidates,omitempty"`
+	LiveGroupSignals    []AutoGroupLiveSignal `json:"live_group_signals,omitempty"`
+}
+
+type AutoGroupLiveSignal struct {
+	Group            string `json:"group"`
+	ChannelID        int    `json:"channel_id"`
+	Inflight         int    `json:"inflight"`
+	ConcurrencyLimit int    `json:"concurrency_limit"`
+	Reason           string `json:"reason"`
+}
+
+func RecordAutoGroupLiveSignal(c *gin.Context, group string, channelID, inflight, limit int, reason string) {
+	updateRouteDecision(c, func(d *RouteDecision) {
+		entry := AutoGroupLiveSignal{group, channelID, inflight, limit, reason}
+		for index := range d.LiveGroupSignals {
+			if d.LiveGroupSignals[index].Group == group {
+				d.LiveGroupSignals[index] = entry
+				return
+			}
+		}
+		d.LiveGroupSignals = append(d.LiveGroupSignals, entry)
+	})
 }
 
 // RouteCandidate records the request-local Auto candidate preflight result.
@@ -54,17 +78,18 @@ type RouteCandidate struct {
 }
 
 type RouteAttempt struct {
-	AttemptID    string      `json:"attempt_id"`
-	RetryIndex   int         `json:"retry_index"`
-	ChannelID    int         `json:"channel_id"`
-	FaultDomain  string      `json:"fault_domain,omitempty"`
-	RequestType  RequestType `json:"request_type"`
-	StartedAt    time.Time   `json:"started_at"`
-	DurationMS   int64       `json:"duration_ms,omitempty"`
-	Stage        string      `json:"stage,omitempty"`
-	StatusCode   int         `json:"status_code,omitempty"`
-	FailureClass string      `json:"failure_class,omitempty"`
-	Success      bool        `json:"success"`
+	AttemptID          string      `json:"attempt_id"`
+	RetryIndex         int         `json:"retry_index"`
+	ChannelID          int         `json:"channel_id"`
+	FaultDomain        string      `json:"fault_domain,omitempty"`
+	RequestType        RequestType `json:"request_type"`
+	StartedAt          time.Time   `json:"started_at"`
+	DurationMS         int64       `json:"duration_ms,omitempty"`
+	Stage              string      `json:"stage,omitempty"`
+	StatusCode         int         `json:"status_code,omitempty"`
+	FailureClass       string      `json:"failure_class,omitempty"`
+	Success            bool        `json:"success"`
+	FirstByteTimeoutMS int64       `json:"first_byte_timeout_ms,omitempty"`
 }
 
 // MarkAutomaticPool records that the selected channel came from the cost and

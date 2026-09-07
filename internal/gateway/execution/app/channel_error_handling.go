@@ -30,7 +30,16 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	failureClass := classifyUpstreamFailure(err)
 	gatewayruntime.FinishRouteDecisionAttempt(c, false, err.StatusCode, string(failureClass), string(gatewaystream.AttemptStageFromContext(c)))
 	localMaxDuration := isLocalStreamMaxDuration(c)
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		// Header waits may end before the stream handler observes disconnect.
+		// Do not punish healthy fallback routes for a cancelled parent request.
+		c.Set(string(constant.ContextKeyClientGone), true)
+	}
 	clientGone := c.GetBool(string(constant.ContextKeyClientGone))
+	defer recordChannelAttemptError(c, err, failureClass, localMaxDuration, clientGone)
+	if failureClass == upstreamFailureContentPolicy {
+		return
+	}
 	if session := responsesws.FromContext(c); session != nil && session.ReplayForbidden() {
 		c.Set(string(constant.ContextKeyResponsesReplayForbidden), true)
 	}
@@ -129,6 +138,10 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if preserveOnlyRoute {
 		platformobservability.SysLog(fmt.Sprintf("通道「%s」（#%d）的模型 %s 是当前分组唯一可用路由，保留后续探测，不进入冷却", channelError.ChannelName, channelError.ChannelId, modelName))
 	}
+
+}
+
+func recordChannelAttemptError(c *gin.Context, err *types.NewAPIError, failureClass upstreamFailureClass, localMaxDuration, clientGone bool) {
 
 	// Relay requests record one user-visible failure only after all retry
 	// candidates are exhausted. Keep this per-attempt record for channel tests

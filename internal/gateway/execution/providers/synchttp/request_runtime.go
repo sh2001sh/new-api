@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sh2001sh/new-api/constant"
@@ -170,7 +171,41 @@ func DoRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) (
 		info.FirstByteTrace.MarkUpstreamRequestReady()
 		req = relaycommon.WithOutboundHTTPTrace(req, info.FirstByteTrace, info.UpstreamRequestBodySize)
 	}
+	var cancelFirstByte context.CancelFunc
+	var firstByteTimer *time.Timer
+	// 0: waiting, 1: deadline won, 2: headers/error won. A stopped timer
+	// may already be running, so arbitrate before allowing it to cancel.
+	var firstByteState atomic.Int32
+	if wait := relaycommon.StartAutomaticFirstByteWait(c); wait > 0 {
+		var ctx context.Context
+		ctx, cancelFirstByte = context.WithCancel(req.Context())
+		req = req.WithContext(ctx)
+		firstByteTimer = time.AfterFunc(wait, func() {
+			if firstByteState.CompareAndSwap(0, 1) {
+				cancelFirstByte()
+			}
+		})
+	}
 	resp, err := client.Do(req)
+	if firstByteTimer != nil {
+		firstByteState.CompareAndSwap(0, 2)
+		firstByteTimer.Stop()
+		if err != nil || firstByteState.Load() == 1 {
+			cancelFirstByte()
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			if firstByteState.Load() == 1 {
+				err = context.DeadlineExceeded
+			}
+		} else if resp != nil && resp.Body != nil {
+			// Keep the request context alive while the response streams. Closing
+			// the body releases it; the stream uses the same remaining deadline.
+			resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancelFirstByte}
+		} else {
+			cancelFirstByte()
+		}
+	}
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
 		if isUpstreamResponseTimeout(err) {
@@ -202,6 +237,16 @@ func DoRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) (
 		_ = c.Request.Body.Close()
 	}
 	return resp, nil
+}
+
+type cancelOnCloseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *cancelOnCloseBody) Close() error {
+	b.cancel()
+	return b.ReadCloser.Close()
 }
 
 func responseHeaderTimeoutForRequest(c *gin.Context, info *relaycommon.RelayInfo) time.Duration {

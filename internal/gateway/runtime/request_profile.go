@@ -63,6 +63,7 @@ type RequestProfileHint struct {
 }
 
 func InitializeRequestProfile(c *gin.Context, model, path string, hint RequestProfileHint) RequestProfile {
+	hint.HasUpstreamState = hint.HasUpstreamState || hasUpstreamTurnState(c)
 	profile := RequestProfile{
 		Protocol:             protocolFromPath(path),
 		ModelFamily:          normalizeModelFamily(model),
@@ -87,6 +88,7 @@ func RefineRequestProfile(c *gin.Context, format types.RelayFormat, request dto.
 	profile.IsStream = request != nil && request.IsStream(c)
 	profile.HasTools = requestHasTools(request)
 	cacheAffinity, upstreamState := requestConversationState(request)
+	upstreamState = upstreamState || hasUpstreamTurnState(c)
 	profile.HasConversationState = cacheAffinity || upstreamState
 	profile.MigrationCapability = migrationCapability(cacheAffinity, upstreamState)
 	image := format == types.RelayFormatOpenAIImage || IsImageGenerationRequest(c) || requestUsesImageGeneration(request)
@@ -96,6 +98,10 @@ func RefineRequestProfile(c *gin.Context, format types.RelayFormat, request dto.
 	profile.RequestType = classifyRequestType(profile, requestPath(c), image)
 	setRequestProfile(c, profile)
 	return profile
+}
+
+func hasUpstreamTurnState(c *gin.Context) bool {
+	return c != nil && c.Request != nil && strings.TrimSpace(c.Request.Header.Get("x-codex-turn-state")) != ""
 }
 
 func RequestProfileFromContext(c *gin.Context) (RequestProfile, bool) {

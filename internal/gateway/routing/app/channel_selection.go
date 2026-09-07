@@ -19,6 +19,7 @@ type RetryParam struct {
 	TokenGroup   string
 	ModelName    string
 	Retry        *int
+	HealthyOnly  bool
 	resetNextTry bool
 }
 
@@ -83,7 +84,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*gatewayschema.Channel, 
 			return nil, selectGroup, err
 		}
 	} else {
-		channel, err = getHealthySatisfiedChannelWithContext(param.Ctx, param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = getHealthySatisfiedChannelWithMode(param.Ctx, param.TokenGroup, param.ModelName, param.GetRetry(), !param.HealthyOnly)
 		if channel != nil {
 			gatewayruntime.SelectRouteDecisionCandidate(param.Ctx, param.TokenGroup, channel.Id, false)
 		}
@@ -149,6 +150,9 @@ func getHealthySatisfiedChannelWithMode(c *gin.Context, group string, modelName 
 	if unknownHealthyCandidate != nil {
 		return unknownHealthyCandidate, nil
 	}
+	if !allowLastResort {
+		return nil, nil
+	}
 	if degradedCandidate == nil {
 		degradedCandidate = unknownDegradedCandidate
 	}
@@ -156,11 +160,6 @@ func getHealthySatisfiedChannelWithMode(c *gin.Context, group string, modelName 
 		if reserveLegacyCandidateProbe(c, degradedCandidate, modelName, routePoolProbeRecovery) {
 			return degradedCandidate, nil
 		}
-		if !allowLastResort {
-			return nil, nil
-		}
-	} else if !allowLastResort {
-		return nil, nil
 	}
 	return selectLegacyLastResortChannel(c, group, modelName, retry), nil
 }

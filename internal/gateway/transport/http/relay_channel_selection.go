@@ -110,28 +110,47 @@ func nextUnifiedAutoChannel(c *gin.Context, info *gatewayruntime.RelayInfo, retr
 	if !found || len(bindings) == 0 {
 		return nil, false, nil
 	}
+	if len(bindings) == 1 {
+		// No cross-group decision remains. Preserve normal in-group recovery,
+		// including the bounded retry of a sole eligible channel.
+		return nil, false, nil
+	}
 	start := httpctx.GetContextKeyInt(c, constant.ContextKeyUnifiedAutoIndex) + 1
-	for index := start; index < len(bindings); index++ {
-		binding := bindings[index]
-		candidateRetry := 0
-		channel, _, err := selectUnifiedAutoRetryChannel(&gatewayroutingapp.RetryParam{
-			Ctx: c, TokenGroup: binding.InternalGroup, ModelName: info.OriginModelName, Retry: &candidateRetry,
-		})
-		if err != nil || channel == nil {
-			gatewayruntime.ExcludeRouteDecisionCandidate(c, "unified_auto_unavailable")
-			continue
+	if start < len(bindings) {
+		bindings = append(append([]marketplaceapp.RoutingBinding(nil), bindings[:start]...), marketplaceapp.PrioritizeAutoRouteBindings(c, bindings[start:], info.OriginModelName)...)
+		httpctx.SetContextKey(c, constant.ContextKeyUnifiedAutoBindings, bindings)
+	}
+	for _, healthyOnly := range []bool{true, false} {
+		for index := start; index < len(bindings); index++ {
+			binding := bindings[index]
+			candidateRetry := 0
+			channel, _, err := selectUnifiedAutoRetryChannel(&gatewayroutingapp.RetryParam{
+				Ctx: c, TokenGroup: binding.InternalGroup, ModelName: info.OriginModelName, Retry: &candidateRetry, HealthyOnly: healthyOnly,
+			})
+			if err != nil || channel == nil {
+				gatewayruntime.ExcludeRouteDecisionCandidate(c, "unified_auto_unavailable")
+				continue
+			}
+			applyUnifiedAutoBinding(c, info, binding)
+			retryParam.TokenGroup = binding.InternalGroup
+			if setupErr := gatewayexecutionapp.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
+				gatewayruntime.ExcludeRouteDecisionCandidate(c, "unified_auto_setup_failed")
+				continue
+			}
+			// Advance only past attempted groups, retaining skipped recovery routes.
+			copy(bindings[start+1:index+1], bindings[start:index])
+			bindings[start] = binding
+			httpctx.SetContextKey(c, constant.ContextKeyUnifiedAutoBindings, bindings)
+			httpctx.SetContextKey(c, constant.ContextKeyUnifiedAutoIndex, start)
+			gatewayruntime.MarkRemainingCrossGroupRoutes(c, len(bindings)-start-1)
+			return channel, true, nil
 		}
-		httpctx.SetContextKey(c, constant.ContextKeyUnifiedAutoIndex, index)
-		applyUnifiedAutoBinding(c, info, binding)
-		retryParam.TokenGroup = binding.InternalGroup
-		gatewayruntime.MarkRemainingCrossGroupRoutes(c, len(bindings)-index-1)
-		if setupErr := gatewayexecutionapp.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
-			gatewayruntime.ExcludeRouteDecisionCandidate(c, "unified_auto_setup_failed")
-			continue
-		}
-		return channel, true, nil
 	}
 	gatewayruntime.MarkRemainingCrossGroupRoutes(c, 0)
+	if info.LastError != nil {
+		c.Set(routeSelectionExhaustedContextKey, false)
+		return nil, true, info.LastError
+	}
 	c.Set(routeSelectionExhaustedContextKey, true)
 	return nil, true, types.NewError(
 		errors.New("Auto 路由池中的分组均已尝试且当前不可用"),

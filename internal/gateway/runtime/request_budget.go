@@ -122,7 +122,7 @@ func AutomaticRouteFirstByteTimeout(c *gin.Context) time.Duration {
 		return 0
 	}
 	profile, found := RequestProfileFromContext(c)
-	if !found || !profile.IsStream || profile.MigrationCapability == MigrationUpstreamStateBound {
+	if !found || !profile.IsStream || profile.MigrationCapability == MigrationUpstreamStateBound || profile.PromptSizeBucket == PromptSizeVeryLarge {
 		return 0
 	}
 	budget := RequestBudgetFromContext(c)
@@ -135,13 +135,50 @@ func AutomaticRouteFirstByteTimeout(c *gin.Context) time.Duration {
 	case RequestTypeToolCallStream:
 		return autoRouteToolFirstByteTimeout
 	case RequestTypeChatLongStream:
-		if IsLongContextRequest(c) {
-			return 0
-		}
 		return autoRouteLongFirstByteTimeout
 	default:
 		return 0
 	}
+}
+
+const automaticFirstByteDeadlineKey = "automatic_first_byte_deadline"
+
+// StartAutomaticFirstByteWait starts one clock for both response headers and
+// semantic output. Each upstream attempt replaces the previous deadline.
+func StartAutomaticFirstByteWait(c *gin.Context) time.Duration {
+	wait := AutomaticRouteFirstByteTimeout(c)
+	var deadline time.Time
+	if wait > 0 {
+		if budget := RequestBudgetFromContext(c); budget != nil {
+			wait = min(wait, budget.Remaining(time.Now()))
+		}
+		deadline = time.Now().Add(wait)
+	}
+	if c != nil {
+		c.Set(automaticFirstByteDeadlineKey, deadline)
+	}
+	updateRouteDecision(c, func(d *RouteDecision) {
+		d.FirstByteTimeoutMS = wait.Milliseconds()
+		if len(d.Attempts) > 0 {
+			d.Attempts[len(d.Attempts)-1].FirstByteTimeoutMS = wait.Milliseconds()
+		}
+		if profile, found := RequestProfileFromContext(c); found {
+			d.MigrationCapability = profile.MigrationCapability
+		}
+	})
+	return wait
+}
+
+func RemainingAutomaticFirstByteWait(c *gin.Context) time.Duration {
+	if c != nil {
+		if value, exists := c.Get(automaticFirstByteDeadlineKey); exists {
+			if deadline, ok := value.(time.Time); ok && !deadline.IsZero() {
+				return max(time.Nanosecond, time.Until(deadline))
+			}
+			return 0
+		}
+	}
+	return AutomaticRouteFirstByteTimeout(c)
 }
 
 func ceilDuration(value, bucket time.Duration) time.Duration {

@@ -16,11 +16,15 @@ const (
 	upstreamFailureCredentialRejected upstreamFailureClass = "credential_rejected"
 	upstreamFailureIncompleteStream   upstreamFailureClass = "incomplete_stream"
 	upstreamFailureTransient          upstreamFailureClass = "transient"
+	upstreamFailureContentPolicy      upstreamFailureClass = "content_policy"
 )
 
 func classifyUpstreamFailure(err *types.NewAPIError) upstreamFailureClass {
 	if err == nil {
 		return upstreamFailureUnknown
+	}
+	if IsUpstreamContentPolicyError(err) {
+		return upstreamFailureContentPolicy
 	}
 	if isUpstreamCapacityFailure(err) {
 		return upstreamFailureTransient
@@ -48,6 +52,16 @@ func classifyUpstreamFailure(err *types.NewAPIError) upstreamFailureClass {
 		return upstreamFailureTransient
 	}
 	return upstreamFailureUnknown
+}
+
+// Request-specific policy rejections must not cool the provider or be replayed
+// through another provider as if they were capacity failures.
+func IsUpstreamContentPolicyError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return containsAny(message, "blocked by our safety systems", "content_policy_violation", "content policy violation", "content_filter")
 }
 
 // IsUpstreamCredentialRejectedError matches only explicit upstream account or
@@ -138,6 +152,9 @@ func isRetryableChannelFailure(err *types.NewAPIError) bool {
 		return false
 	}
 	failureClass := classifyUpstreamFailure(err)
+	if failureClass == upstreamFailureContentPolicy {
+		return false
+	}
 	if failureClass == upstreamFailureCredentialRejected || failureClass == upstreamFailureIncompleteStream || failureClass == upstreamFailureTransient {
 		return true
 	}

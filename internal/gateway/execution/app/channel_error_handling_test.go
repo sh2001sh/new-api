@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,25 @@ import (
 	"github.com/sh2001sh/new-api/types"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCancelledHeaderWaitDoesNotRecordChannelFailure(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	requestCtx, cancel := context.WithCancel(context.Background())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(requestCtx)
+	ctx.Set("original_model", "gpt-cancelled-header-test")
+	ctx.Set(constant.RequestIdKey, t.Name())
+	httpctx.SetContextKey(ctx, constant.ContextKeyUserId, 924991)
+	relaycommon.MarkAutoRouteRequest(ctx)
+	relaycommon.MarkRemainingCrossGroupRoutes(ctx, 3)
+	cancel()
+	err := types.NewOpenAIError(context.Canceled, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	ProcessChannelError(ctx, *types.NewChannelError(924991, constant.ChannelTypeOpenAI, "cancelled", false, "", false), err)
+	require.True(t, ctx.GetBool(string(constant.ContextKeyClientGone)))
+	_, shared := relaycommon.GetChannelHealth(924991, "gpt-cancelled-header-test")
+	_, user := relaycommon.GetUserChannelHealth(ctx, 924991, "gpt-cancelled-header-test")
+	require.False(t, shared)
+	require.False(t, user)
+}
 
 func TestIsModelUnavailableError(t *testing.T) {
 	require.True(t, IsModelUnavailableError(types.NewOpenAIError(
@@ -41,6 +61,25 @@ func TestCapacityResponseIsRetryableInsteadOfModelScoped(t *testing.T) {
 	require.Equal(t, upstreamFailureTransient, classifyUpstreamFailure(err))
 	require.False(t, IsModelScopedUpstreamFailure(err))
 	require.True(t, isRetryableChannelFailure(err))
+}
+
+func TestContentPolicyRefusalDoesNotPoisonRouteHealth(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Set("original_model", "gpt-5.6-sol")
+	ctx.Set(constant.RequestIdKey, t.Name())
+	httpctx.SetContextKey(ctx, constant.ContextKeyUserId, 923481)
+	relaycommon.MarkAutoRouteRequest(ctx)
+	relaycommon.MarkRemainingCrossGroupRoutes(ctx, 2)
+	err := types.NewOpenAIError(errors.New("request blocked by our safety systems"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+	require.False(t, isRetryableChannelFailure(err))
+	require.Equal(t, upstreamFailureContentPolicy, classifyUpstreamFailure(err))
+	ProcessChannelError(ctx, *types.NewChannelError(923481, constant.ChannelTypeOpenAI, "policy", true, "", false), err)
+	_, shared := relaycommon.GetChannelHealth(923481, "gpt-5.6-sol")
+	_, user := relaycommon.GetUserChannelHealth(ctx, 923481, "gpt-5.6-sol")
+	require.False(t, shared)
+	require.False(t, user)
+	require.Zero(t, httpctx.GetContextKeyInt(ctx, constant.ContextKeyRetryFallbackChannelID))
 }
 
 func TestExplicitUpstreamCredentialRejectionIsRetryable(t *testing.T) {

@@ -59,6 +59,70 @@ func TestDoAPIRequestPropagatesClientCancellationToUpstream(t *testing.T) {
 	}
 }
 
+func TestAutoFirstByteDeadlineCancelsStalledHeadersWithoutBucketRounding(t *testing.T) {
+	platformhttpx.InitHTTPClient()
+	stopped := make(chan struct{})
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// HTTP/1 observes a disconnected peer after consuming the request body.
+		_, _ = io.Copy(io.Discard, r.Body)
+		select {
+		case <-r.Context().Done():
+			close(stopped)
+		case <-release:
+		}
+	}))
+	defer server.Close()
+	defer close(release)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	profile := relaycommon.InitializeRequestProfile(ctx, "gpt-5.6-sol", ctx.Request.URL.Path, relaycommon.RequestProfileHint{IsStream: true})
+	relaycommon.MarkAutoRouteRequest(ctx)
+	relaycommon.MarkRemainingCrossGroupRoutes(ctx, 1)
+	budget := relaycommon.StartRequestBudget(ctx, profile, time.Now())
+	budget.Deadline = time.Now().Add(200 * time.Millisecond)
+	started := time.Now()
+	_, err := DoAPIRequest(contextAwareRequestAdaptor{url: server.URL}, ctx,
+		&relaycommon.RelayInfo{IsStream: true, OriginModelName: "gpt-5.6-sol", RelayMode: gatewaycontract.RelayModeResponses, ChannelMeta: &relaycommon.ChannelMeta{}}, strings.NewReader("{}"))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "upstream response timed out")
+	require.Less(t, time.Since(started), 2*time.Second, "must not wait for the five-second transport bucket")
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream request was not cancelled")
+	}
+}
+
+func TestAutoHeaderDeadlineKeepsSuccessfulResponseBodyOpen(t *testing.T) {
+	platformhttpx.InitHTTPClient()
+	resume := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		select {
+		case <-resume:
+			_, _ = w.Write([]byte("response content"))
+		case <-r.Context().Done():
+		}
+	}))
+	defer server.Close()
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	profile := relaycommon.InitializeRequestProfile(ctx, "gpt-5.6-sol", ctx.Request.URL.Path, relaycommon.RequestProfileHint{IsStream: true})
+	relaycommon.MarkAutoRouteRequest(ctx)
+	relaycommon.MarkRemainingCrossGroupRoutes(ctx, 1)
+	relaycommon.StartRequestBudget(ctx, profile, time.Now())
+	resp, err := DoAPIRequest(contextAwareRequestAdaptor{url: server.URL}, ctx,
+		&relaycommon.RelayInfo{IsStream: true, OriginModelName: "gpt-5.6-sol", RelayMode: gatewaycontract.RelayModeResponses, ChannelMeta: &relaycommon.ChannelMeta{}}, strings.NewReader("{}"))
+	close(resume)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "response content", string(body))
+}
+
 func TestApplyReplayableRequestBodySetsIndependentGetBody(t *testing.T) {
 	storage, err := platformhttpx.CreateBodyStorage([]byte("request-body"))
 	require.NoError(t, err)

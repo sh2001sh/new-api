@@ -167,6 +167,7 @@ type AdminChannelQuery struct {
 }
 
 type AdminOwnerIncomeQuery struct {
+	OperationID    string
 	OwnerSearch    string
 	OwnerUserIDs   []int
 	StartTimestamp int64
@@ -368,15 +369,18 @@ type AdminReviewRequest struct {
 }
 
 type RoutingBinding struct {
-	RouteKey         string
-	GroupID          string
-	InternalGroup    string
-	OwnerUserID      int
-	SourceType       string
-	CreditPoolPolicy string
-	Multiplier       float64
-	ModelPrices      map[string]ChannelModelPrice
-	Models           []string
+	// Runtime metadata only; never used to bypass the gateway's channel checks.
+	InternalChannelID int
+	MaxConcurrency    int
+	RouteKey          string
+	GroupID           string
+	InternalGroup     string
+	OwnerUserID       int
+	SourceType        string
+	CreditPoolPolicy  string
+	Multiplier        float64
+	ModelPrices       map[string]ChannelModelPrice
+	Models            []string
 }
 
 type AutoRoutePoolUpdateRequest struct {

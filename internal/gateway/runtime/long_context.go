@@ -100,7 +100,7 @@ func StreamFirstOutputTimeoutForRequest(c *gin.Context, model string, promptToke
 	if !isGPTModel(model) {
 		return 0
 	}
-	if timeout := AutomaticRouteFirstByteTimeout(c); timeout > 0 {
+	if timeout := RemainingAutomaticFirstByteWait(c); timeout > 0 {
 		return timeout
 	}
 	if (c != nil && IsLongContextRequest(c)) || promptTokens >= LongContextPromptTokenThreshold {

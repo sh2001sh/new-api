@@ -168,6 +168,12 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if openaiErr == nil {
 		return false
 	}
+	if gatewayexecutionapp.IsUpstreamContentPolicyError(openaiErr) {
+		return false
+	}
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		return false
+	}
 	if c != nil && c.GetBool(string(constant.ContextKeyClientGone)) {
 		return false
 	}
@@ -237,6 +243,13 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 // shortly after it starts. A healthy but slow connection is never interrupted;
 // the window is consulted only after an upstream error has already occurred.
 func withinGPTRetryFailureWindow(c *gin.Context) bool {
+	if gatewayruntime.IsAutoRouteRequest(c) && gatewayruntime.HasRemainingCrossGroupRoute(c) {
+		if profile, found := gatewayruntime.RequestProfileFromContext(c); found && profile.MigrationCapability != gatewayruntime.MigrationUpstreamStateBound {
+			if budget := gatewayruntime.RequestBudgetFromContext(c); budget != nil {
+				return budget.CanRetry(time.Now())
+			}
+		}
+	}
 	if c == nil || !strings.HasPrefix(strings.ToLower(c.GetString("original_model")), "gpt-") {
 		return true
 	}

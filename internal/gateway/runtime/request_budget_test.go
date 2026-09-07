@@ -264,3 +264,46 @@ func TestAutomaticRouteFirstByteTimeoutProtectsUpstreamState(t *testing.T) {
 
 	require.Zero(t, AutomaticRouteFirstByteTimeout(context))
 }
+
+func TestAutomaticRouteFirstByteTimeoutAllowsCacheAffinityButProtectsHugePrompts(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	profile := RequestProfile{RequestType: RequestTypeChatLongStream, IsStream: true, MigrationCapability: MigrationCacheAffinity, PromptSizeBucket: PromptSizeMedium}
+	setRequestProfile(ctx, profile)
+	MarkAutoRouteRequest(ctx)
+	MarkRemainingCrossGroupRoutes(ctx, 1)
+	MarkLongContextRequestWithContinuation(ctx, "gpt-5.6-sol", 85000, true)
+	budget := StartRequestBudget(ctx, profile, time.Now())
+	require.True(t, budget.TryBeginAttempt(time.Now(), "provider:a"))
+	require.Equal(t, 25*time.Second, AutomaticRouteFirstByteTimeout(ctx))
+	profile.PromptSizeBucket = PromptSizeVeryLarge
+	setRequestProfile(ctx, profile)
+	require.Zero(t, AutomaticRouteFirstByteTimeout(ctx))
+	profile.RequestType = RequestTypeToolCallStream
+	setRequestProfile(ctx, profile)
+	require.Zero(t, AutomaticRouteFirstByteTimeout(ctx))
+}
+
+func TestAutomaticFirstByteWaitDoesNotRestartAfterHeaders(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	profile := RequestProfile{RequestType: RequestTypeChatLongStream, IsStream: true, MigrationCapability: MigrationCacheAffinity}
+	setRequestProfile(ctx, profile)
+	MarkAutoRouteRequest(ctx)
+	MarkRemainingCrossGroupRoutes(ctx, 1)
+	StartRequestBudget(ctx, profile, time.Now())
+	StartRouteDecision(ctx, "gpt-5.6-sol", "auto")
+	StartRouteDecisionAttempt(ctx, 0, 624217, "first")
+	require.Equal(t, 25*time.Second, StartAutomaticFirstByteWait(ctx))
+	ctx.Set(automaticFirstByteDeadlineKey, time.Now().Add(7*time.Second))
+	wait := StreamFirstOutputTimeoutForRequest(ctx, "gpt-5.6-sol", 85000)
+	require.InDelta(t, float64(7*time.Second), float64(wait), float64(100*time.Millisecond))
+	ctx.Set(automaticFirstByteDeadlineKey, time.Now().Add(-time.Second))
+	require.Equal(t, time.Nanosecond, StreamFirstOutputTimeoutForRequest(ctx, "gpt-5.6-sol", 85000))
+	MarkRemainingCrossGroupRoutes(ctx, 0)
+	StartRouteDecisionAttempt(ctx, 1, 624218, "last")
+	require.Zero(t, StartAutomaticFirstByteWait(ctx))
+	require.Zero(t, RemainingAutomaticFirstByteWait(ctx), "last attempt must not inherit the previous deadline")
+	decision, ok := GetRouteDecision(ctx)
+	require.True(t, ok)
+	require.EqualValues(t, 25000, decision.Attempts[0].FirstByteTimeoutMS, "later attempts must not erase an earlier timeout decision")
+	require.Zero(t, decision.Attempts[1].FirstByteTimeoutMS)
+}

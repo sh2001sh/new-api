@@ -38,6 +38,16 @@ func TestRequestProfileClassification(t *testing.T) {
 	}
 }
 
+func TestOpaqueTurnStateCannotBecomeCacheOnlyAfterRefinement(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Request.Header.Set("x-codex-turn-state", "opaque-test-state")
+	p := InitializeRequestProfile(ctx, "gpt-5.6-sol", ctx.Request.URL.Path, RequestProfileHint{IsStream: true, HasCacheAffinity: true})
+	require.Equal(t, MigrationUpstreamStateBound, p.MigrationCapability)
+	p = RefineRequestProfile(ctx, types.RelayFormatOpenAIResponses, &dto.OpenAIResponsesRequest{}, 1000)
+	require.Equal(t, MigrationUpstreamStateBound, p.MigrationCapability)
+}
+
 func TestRefineRequestProfileUsesPromptAndConversationState(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
