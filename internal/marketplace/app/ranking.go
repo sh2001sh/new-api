@@ -179,6 +179,14 @@ func loadPublicGroups(query GroupQuery) ([]marketplaceschema.Group, map[string]m
 }
 
 func loadPublicGroupRows(query GroupQuery) ([]marketplaceschema.Group, error) {
+	var groups []marketplaceschema.Group
+	if err := publicGroupsQuery(query).Order("updated_at DESC, id ASC").Limit(1000).Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
+}
+
+func publicGroupsQuery(query GroupQuery) *gorm.DB {
 	dbQuery := platformdb.DB.Model(&marketplaceschema.Group{}).Select(marketplaceGroupColumns())
 	// Suspended and disabled channels are operationally unavailable and must
 	// not leak into public discovery, even when a status filter is supplied.
@@ -207,11 +215,7 @@ func loadPublicGroupRows(query GroupQuery) ([]marketplaceschema.Group, error) {
 	if query.MaxMultiplier > 0 {
 		dbQuery = dbQuery.Where("multiplier <= ?", query.MaxMultiplier)
 	}
-	var groups []marketplaceschema.Group
-	if err := dbQuery.Order("updated_at DESC, id ASC").Limit(1000).Find(&groups).Error; err != nil {
-		return nil, err
-	}
-	return groups, nil
+	return dbQuery
 }
 
 func marketplaceGroupColumns() string {

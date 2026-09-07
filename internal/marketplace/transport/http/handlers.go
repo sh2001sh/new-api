@@ -34,6 +34,11 @@ func ListKeyGroupOptions(c *gin.Context) {
 	respond(c, result, err)
 }
 
+func ListGroupStatus(c *gin.Context) {
+	result, err := marketplaceapp.ListMarketplaceGroupStatus(c.GetInt("id"))
+	respond(c, result, err)
+}
+
 func ListMultiplierTrends(c *gin.Context) {
 	result, err := marketplaceapp.ListMultiplierTrends(marketplaceapp.MultiplierTrendQuery{
 		RangeHours: queryInt(c, "range_hours", 24),

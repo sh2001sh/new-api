@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com.
 */
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronDown,
@@ -26,36 +27,30 @@ import {
   Waypoints,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { SiteSeo } from '@/components/seo'
+import { getMarketplaceGroupStatus } from '@/features/marketplace/api'
 import { RecentRequestStrip } from '@/features/marketplace/components/recent-request-strip'
-import { useMarketplaceGroups } from '@/features/marketplace/hooks'
 import type { MarketplaceGroup } from '@/features/marketplace/types'
 import { DawnNav } from '../components/dawn-nav'
 import { DawnQueryError } from '../components/query-error'
 import { healthState, pct, type HealthState } from '../lib/format'
-
-const STATUS_FILTERS = {
-  search: '',
-  model: '',
-  source: '',
-  provider: '',
-  status: '',
-  verification: '',
-  sort: 'score',
-  direction: 'desc',
-  window_hours: 24,
-  page: 1,
-  page_size: 50,
-}
 
 type SourceFilter = 'all' | 'official' | 'marketplace_user'
 type StateFilter = '' | HealthState
 
 export function DawnStatus() {
   const { t } = useTranslation()
-  const query = useMarketplaceGroups(STATUS_FILTERS)
-  const groups = useMemo(() => query.data?.items ?? [], [query.data])
+  const userID = useAuthStore((state) => state.auth.user?.id)
+  const query = useQuery({
+    queryKey: ['marketplace-group-status', userID],
+    queryFn: getMarketplaceGroupStatus,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  })
+  const groups = useMemo(() => query.data ?? [], [query.data])
 
   const [source, setSource] = useState<SourceFilter>('all')
   const [search, setSearch] = useState('')
@@ -314,83 +309,90 @@ export function DawnStatus() {
                   <ChevronDown size={16} className='cv' />
                 </span>
               </div>
-              <div className='gbody'>
-                <p className='text-muted-foreground px-6 py-3 text-xs'>
-                  {t(
-                    '上方状态条为分组请求历史；以下为各模型最近一次检测结果。'
-                  )}
-                </p>
-                {group.model_verification_results.length ? (
-                  group.model_verification_results.map((result) => {
-                    const rowState = result.status === 'passed' ? 'ok' : 'bad'
-                    return (
-                      <div className='mrow' key={`${group.id}-${result.model}`}>
+              {openSet.has(group.id) && (
+                <div className='gbody'>
+                  <p className='text-muted-foreground px-6 py-3 text-xs'>
+                    {t(
+                      '上方状态条为分组请求历史；以下为各模型最近一次检测结果。'
+                    )}
+                  </p>
+                  {group.model_verification_results.length ? (
+                    group.model_verification_results.map((result) => {
+                      const rowState = result.status === 'passed' ? 'ok' : 'bad'
+                      return (
+                        <div
+                          className='mrow'
+                          key={`${group.id}-${result.model}`}
+                        >
+                          <span className='mn'>
+                            <span
+                              className={`dot ${rowState}`}
+                              style={{ width: 6, height: 6, boxShadow: 'none' }}
+                            />
+                            {result.model}
+                          </span>
+                          <span
+                            className={`num ${rowState === 'ok' ? 'ok' : 'bad'}`}
+                          >
+                            检测{' '}
+                            <b>
+                              {result.status === 'passed' ? '通过' : '失败'}
+                            </b>
+                          </span>
+                          <span
+                            className={`num ${result.latency_ms > 1000 ? 'warn' : ''}`}
+                          >
+                            延迟 <b>{result.latency_ms}ms</b>
+                          </span>
+                          <span className='num tested-at'>
+                            {t('检测时间')}{' '}
+                            <time dateTime={result.tested_at}>
+                              {result.tested_at
+                                ? new Date(result.tested_at).toLocaleString()
+                                : '—'}
+                            </time>
+                          </span>
+                        </div>
+                      )
+                    })
+                  ) : group.models.length ? (
+                    group.models.slice(0, 12).map((name) => (
+                      <div className='mrow' key={`${group.id}-${name}`}>
                         <span className='mn'>
                           <span
-                            className={`dot ${rowState}`}
+                            className='dot idle'
                             style={{ width: 6, height: 6, boxShadow: 'none' }}
                           />
-                          {result.model}
+                          {name}
                         </span>
-                        <span
-                          className={`num ${rowState === 'ok' ? 'ok' : 'bad'}`}
-                        >
-                          检测{' '}
-                          <b>{result.status === 'passed' ? '通过' : '失败'}</b>
+                        <span className='num'>
+                          检测 <b>—</b>
                         </span>
-                        <span
-                          className={`num ${result.latency_ms > 1000 ? 'warn' : ''}`}
-                        >
-                          延迟 <b>{result.latency_ms}ms</b>
+                        <span className='num'>
+                          延迟 <b>—</b>
                         </span>
                         <span className='num tested-at'>
-                          {t('检测时间')}{' '}
-                          <time dateTime={result.tested_at}>
-                            {result.tested_at
-                              ? new Date(result.tested_at).toLocaleString()
-                              : '—'}
-                          </time>
+                          {t('暂无模型检测记录')}
                         </span>
                       </div>
-                    )
-                  })
-                ) : group.models.length ? (
-                  group.models.slice(0, 12).map((name) => (
-                    <div className='mrow' key={`${group.id}-${name}`}>
-                      <span className='mn'>
-                        <span
-                          className='dot idle'
-                          style={{ width: 6, height: 6, boxShadow: 'none' }}
-                        />
-                        {name}
+                    ))
+                  ) : (
+                    <div
+                      className='empty'
+                      style={{
+                        marginTop: 0,
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
+                      }}
+                    >
+                      <span className='eic'>
+                        <Waypoints size={20} />
                       </span>
-                      <span className='num'>
-                        检测 <b>—</b>
-                      </span>
-                      <span className='num'>
-                        延迟 <b>—</b>
-                      </span>
-                      <span className='num tested-at'>
-                        {t('暂无模型检测记录')}
-                      </span>
+                      <b>窗口内无调用</b>
                     </div>
-                  ))
-                ) : (
-                  <div
-                    className='empty'
-                    style={{
-                      marginTop: 0,
-                      borderTopLeftRadius: 0,
-                      borderTopRightRadius: 0,
-                    }}
-                  >
-                    <span className='eic'>
-                      <Waypoints size={20} />
-                    </span>
-                    <b>窗口内无调用</b>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         ) : (

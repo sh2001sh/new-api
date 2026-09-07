@@ -10,6 +10,7 @@ import type {
   MarketplaceRoutePool,
   MarketplaceRoutePoolSummary,
   MarketplaceGroupList,
+  MarketplaceGroup,
   MarketplaceOwnerUsageLogResult,
   MarketplaceOwnerUsageLogFilters,
   MarketplaceMultiplierTrend,
@@ -188,6 +189,13 @@ function requireData<T>(response: ApiResponse<T>): T {
     throw new Error(response.message || '请求失败')
   }
   return response.data
+}
+
+export async function getMarketplaceGroupStatus() {
+  const response = await api.get<ApiResponse<MarketplaceGroup[]>>(
+    '/api/marketplace/group-status'
+  )
+  return requireData(response.data)
 }
 
 export async function getMarketplaceGroups(filters: GroupFilters) {
